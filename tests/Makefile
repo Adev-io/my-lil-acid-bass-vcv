@@ -1,5 +1,5 @@
 CXX ?= g++
-CXXFLAGS ?= -std=c++11 -O2 -Wall -Wextra -I../core
+CXXFLAGS ?= -std=c++11 -O3 -funsafe-math-optimizations -march=nehalem -Wall -Wextra -I../core   # the plugin's own flags
 BIN := ../build/tests.exe
 
 all: run
