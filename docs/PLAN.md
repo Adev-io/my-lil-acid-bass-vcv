@@ -13,6 +13,6 @@ Each box is done when its check passes.
 - [x] 4. Rack module: params/IO, process(), pattern bank with the try_lock handoff, dataToJson/dataFromJson,
       context menu (copy/paste notation and JSON, clear, demo set). Check: `make` builds plugin.dll with no warnings in src.
 - [x] 5. Panel: SVG, nanovg labels, step-grid widget with click editing and playhead. Check: `make` builds.
-- [ ] 6. Install and smoke. Check: `make install`; in Rack the module loads, the demo set plays from the internal clock,
+- [x] 6. Install and smoke. Check: `make install`; in Rack the module loads, the demo set plays from the internal clock,
       grid edits are heard, patch save/reload keeps the patterns.
-- [ ] 7. Review: code review of core and src, fixes applied, tests green.
+- [x] 7. Review: code review of core and src, fixes applied, tests green.

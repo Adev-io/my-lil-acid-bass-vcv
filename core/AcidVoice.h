@@ -34,6 +34,8 @@ struct AcidParams
 class AcidVoice
 {
 public:
+    AcidVoice() { held.reserve (16); }   // here, not in prepare(): Rack calls prepare() from the audio thread
+
     void prepare (double sr)
     {
         sampleRate = sr;
@@ -41,7 +43,6 @@ public:
         hp.setType (Svf::Highpass); hp.setResonance (0.7071f);
         f1.setResonance (0.5f);
         glideCoef = 1.0f - std::exp (-1.0f / (0.02f * (float) sr));   // ~60 ms to settle
-        held.reserve (16);
         reset();
     }
 

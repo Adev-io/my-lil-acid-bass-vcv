@@ -210,6 +210,7 @@ struct AcidBass : Module
             if (ext) playing = clock.tickExternal (edge, args.sampleRate * 60.0 / bpm / 4.0, a, b);
             else clock.tickInternal (bpm, args.sampleTime, a, b);
         }
+        else if (ext) clock.idleExternal (edge);
         seq.process (audioPat, ss, playing, a, b, evs);
         applySeq(); event = event || ! evs.empty();
         playStep.store (seq.currentStep(), std::memory_order_relaxed);

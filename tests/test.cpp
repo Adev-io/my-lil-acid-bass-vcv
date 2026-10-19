@@ -271,6 +271,16 @@ int main()
         for (int i = 0; i < 1000; ++i) c.tickExternal (false, 50.0, a, b);
         check (b < 0.5 && b > 0.49, "external clock: a stopped clock holds before the next step", b);
     }
+    {   // stopped (Run off) with pulses every 400: the spacing is still measured, the position does not move,
+        // and after Run the next pulse plays the next step at the new speed
+        SongClock c; double a = 0, b = 0;
+        for (int i = 0; i < 2; ++i) c.tickExternal (true, 100.0, a, b);
+        const double held = c.pos;
+        for (int i = 0; i < 1200; ++i) c.idleExternal (i % 400 == 0);
+        const bool still = c.pos == held && c.period == 400.0;
+        c.tickExternal (true, 100.0, a, b);
+        check (still && a == held && b > 0.5 && std::abs ((b - 0.5) - 0.25 / 400.0) < 1e-12, "external clock: Run off keeps the pulse spacing and holds the position", c.period);
+    }
 
     // ---- notation and JSON text ----
     {

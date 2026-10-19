@@ -19,6 +19,13 @@ struct SongClock
         a = pos; pos += bpm / 60.0 * sampleTime; b = pos;
     }
 
+    // While stopped: keep measuring the pulse spacing, but do not move. The next pulse after Run plays the next step.
+    void idleExternal (bool edge)
+    {
+        since += 1.0;
+        if (edge) { if (edges >= 0) period = since; since = 0.0; }
+    }
+
     // False before the first pulse since reset (nothing plays until the clock does). fallbackPeriod is in samples per step.
     bool tickExternal (bool edge, double fallbackPeriod, double& a, double& b)
     {
