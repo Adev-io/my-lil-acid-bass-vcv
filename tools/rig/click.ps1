@@ -15,9 +15,10 @@ $cx = $ImgX - ($o.X - $r.L); $cy = $ImgY - ($o.Y - $r.T)
 $was = New-Object RigClick+POINT; [RigClick]::GetCursorPos([ref]$was) | Out-Null
 $lp = [IntPtr](($cy -shl 16) -bor ($cx -band 0xffff))
 $down, $up, $mk = if ($Button -eq 'Left') { 0x0201, 0x0202, 1 } else { 0x0204, 0x0205, 2 }
-[RigClick]::SetCursorPos($o.X + $cx, $o.Y + $cy) | Out-Null
-[RigClick]::PostMessage($hwnd, 0x0200, [IntPtr]0, $lp) | Out-Null; Start-Sleep -Milliseconds 150
-[RigClick]::PostMessage($hwnd, $down, [IntPtr]$mk, $lp) | Out-Null; Start-Sleep -Milliseconds 100
-[RigClick]::PostMessage($hwnd, $up, [IntPtr]0, $lp) | Out-Null; Start-Sleep -Milliseconds 150
-[RigClick]::SetCursorPos($was.X, $was.Y) | Out-Null
+try {
+    [RigClick]::SetCursorPos($o.X + $cx, $o.Y + $cy) | Out-Null
+    [RigClick]::PostMessage($hwnd, 0x0200, [IntPtr]0, $lp) | Out-Null; Start-Sleep -Milliseconds 150
+    [RigClick]::PostMessage($hwnd, $down, [IntPtr]$mk, $lp) | Out-Null; Start-Sleep -Milliseconds 100
+    [RigClick]::PostMessage($hwnd, $up, [IntPtr]0, $lp) | Out-Null; Start-Sleep -Milliseconds 150
+} finally { [RigClick]::SetCursorPos($was.X, $was.Y) | Out-Null }
 "$Button click at $ImgX,$ImgY"

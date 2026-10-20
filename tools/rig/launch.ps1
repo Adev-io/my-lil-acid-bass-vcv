@@ -6,13 +6,19 @@ $ErrorActionPreference = 'Stop'
 $repo = Split-Path (Split-Path $PSScriptRoot)
 $dist = Join-Path $repo 'dist\MyLilAcidBass'
 if (-not (Test-Path "$dist\plugin.dll")) { throw "No build at $dist. Run make dist first." }
+$patchPath = (Resolve-Path $Patch).Path
+foreach ($x in $Extra) { if (-not (Test-Path "$env:LOCALAPPDATA\Rack2\plugins-win-x64\$x")) { throw "No plugin $x in Ari's Rack" } }
 $u = Join-Path $env:TEMP ("acidbass-rig-" + (Get-Date -Format 'yyyyMMdd-HHmmss'))
 New-Item -ItemType Directory "$u\plugins-win-x64" | Out-Null
 Copy-Item $dist "$u\plugins-win-x64\" -Recurse
 foreach ($x in $Extra) { Copy-Item "$env:LOCALAPPDATA\Rack2\plugins-win-x64\$x" "$u\plugins-win-x64\" -Recurse }
-'{ "tipIndex": -1 }' | Set-Content -Encoding utf8NoBOM "$u\settings.json"
-$p = Start-Process 'C:\Program Files\VCV\Rack2Free\Rack.exe' -ArgumentList '-u', $u, (Resolve-Path $Patch).Path -PassThru
-Start-Sleep 12
+'{ "showTipsOnLaunch": false, "tipIndex": -1 }' | Set-Content -Encoding utf8NoBOM "$u\settings.json"
+$p = Start-Process 'C:\Program Files\VCV\Rack2Free\Rack.exe' -ArgumentList '-u', $u, $patchPath -PassThru
+for ($i = 0; $i -lt 60; $i++) {
+    Start-Sleep -Milliseconds 500
+    if ($p.HasExited -or (Get-Process -Id $p.Id).MainWindowHandle -ne 0) { break }
+}
 if ($p.HasExited) { throw "Rack exited (code $($p.ExitCode)). See $u\log.txt" }
+Start-Sleep 3
 "pid=$($p.Id)"
 "dir=$u"

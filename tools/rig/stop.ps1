@@ -1,12 +1,16 @@
-# Closes the isolated Rack started by launch.ps1 and deletes its user dir. Refuses anything but an acidbass-rig-* dir
-# under %TEMP%, and warns if a VCV login token got saved (a fresh dir can get logged in).
+# Closes the isolated Rack started by launch.ps1 and deletes its user dir. It refuses any dir that is not an
+# acidbass-rig-* folder directly under %TEMP%, and warns if a VCV login token was saved (a fresh dir can get logged in).
 param([Parameter(Mandatory)][ValidatePattern('\\acidbass-rig-\d{8}-\d{6}$')][string]$Dir)
 $ErrorActionPreference = 'Stop'
-if (-not $Dir.StartsWith($env:TEMP)) { throw "Not under TEMP: $Dir" }
+$full = [IO.Path]::GetFullPath($Dir).TrimEnd('\')
+$tmp  = [IO.Path]::GetFullPath($env:TEMP).TrimEnd('\')
+if ([IO.Path]::GetDirectoryName($full) -ne $tmp -or $full -notmatch '\\acidbass-rig-\d{8}-\d{6}$') { throw "Refusing: $full" }
+if (-not (Test-Path -LiteralPath $full -PathType Container)) { throw "No such dir: $full" }
+if ((Get-Item -LiteralPath $full).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw "Reparse point: $full" }
 Get-Process Rack -ErrorAction SilentlyContinue | Where-Object {
-    (Get-CimInstance Win32_Process -Filter "ProcessId=$($_.Id)").CommandLine -like "*$Dir*"
+    (Get-CimInstance Win32_Process -Filter "ProcessId=$($_.Id)").CommandLine -like "*$full*"
 } | ForEach-Object { $_.CloseMainWindow() | Out-Null; $_ | Wait-Process -Timeout 30 }
-$s = Get-Content "$Dir\settings.json" -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json
-if ($s.token) { Write-Warning "A VCV login token was saved in $Dir; deleting it with the dir." }
-Remove-Item $Dir -Recurse -Force
-"deleted $Dir"
+$s = Get-Content "$full\settings.json" -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json
+if ($s.token) { Write-Warning "A VCV login token was saved in $full; deleting it with the dir." }
+Remove-Item -LiteralPath $full -Recurse -Force
+"deleted $full"

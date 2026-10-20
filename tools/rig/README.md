@@ -8,4 +8,5 @@ Drives an isolated VCV Rack 2 Free to check the module by hand-free clicks. Neve
 4. `state.ps1 -Dir <dir>` → LENGTH / PATTERN / slot lengths from Rack's autosave (wait 17 s after an action).
 5. Undo/Redo: click Rack's **Edit** menu (posted Ctrl+Z does not work: GLFW reads the real modifier keys).
 6. `stop.ps1 -Dir <dir>` closes that Rack and deletes the dir.
+click.ps1 moves the real cursor for ~0.4 s: don't run it while someone is using the mouse. Read click coordinates from a full-window cap.ps1 shot, not a crop.
 Never trigger a native dialog (e.g. pasting junk): it blocks the window and the scripts cannot close it.
