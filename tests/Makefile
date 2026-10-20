@@ -1,5 +1,7 @@
 CXX ?= g++
-CXXFLAGS ?= -std=c++11 -O3 -funsafe-math-optimizations -march=nehalem -Wall -Wextra -I../core   # the plugin's own flags
+# the plugin's own flags (Rack's compile.mk), with its -march per CPU so the tests also run on Apple Silicon
+MARCH := $(if $(filter x86_64 amd64,$(shell uname -m)),-march=nehalem,-march=armv8-a+fp+simd)
+CXXFLAGS ?= -std=c++11 -O3 -funsafe-math-optimizations $(MARCH) -Wall -Wextra -I../core
 BIN := ../build/tests.exe
 
 all: run
