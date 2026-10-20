@@ -16,9 +16,11 @@ foreach ($x in $Extra) { Copy-Item "$env:LOCALAPPDATA\Rack2\plugins-win-x64\$x" 
 $p = Start-Process 'C:\Program Files\VCV\Rack2Free\Rack.exe' -ArgumentList '-u', $u, $patchPath -PassThru
 for ($i = 0; $i -lt 60; $i++) {
     Start-Sleep -Milliseconds 500
-    if ($p.HasExited -or (Get-Process -Id $p.Id).MainWindowHandle -ne 0) { break }
+    if ($p.HasExited -or (Get-Process -Id $p.Id -ErrorAction SilentlyContinue).MainWindowHandle -ne 0) { break }
 }
 if ($p.HasExited) { throw "Rack exited (code $($p.ExitCode)). See $u\log.txt" }
+$h = (Get-Process -Id $p.Id -ErrorAction SilentlyContinue).MainWindowHandle   # an IntPtr: compare with 0, -not is always false
+if ($null -eq $h -or $h -eq 0) { throw "No Rack window after 30 s (pid $($p.Id)); dir $u kept" }
 Start-Sleep 3
 "pid=$($p.Id)"
 "dir=$u"
