@@ -283,10 +283,11 @@ struct PatternChange : history::ModuleAction
 {
     int slot = 0;
     Pattern before, after;
+    // An action restores the length only if it changed it, so a length set outside history (e.g. MIDI-Map on LENGTH) survives the Undo of a step edit.
     void set (const Pattern& p) const
     {
         AcidBass* m = dynamic_cast<AcidBass*> (APP->engine->getModule (moduleId));
-        if (m) m->edit (slot, [&] (Pattern& dst) { dst = p; });
+        if (m) m->edit (slot, [&] (Pattern& dst) { const int keep = dst.len; dst = p; if (before.len == after.len) dst.len = keep; });
     }
     void undo() override { set (before); }
     void redo() override { set (after); }
@@ -566,13 +567,15 @@ struct AcidBassWidget : ModuleWidget
             };
             for (const auto& s : sound)
             {
+                const float before = m->paramQuantities[s.id]->getValue();
+                if (before == s.v) continue;
+                m->paramQuantities[s.id]->setValue (s.v);
                 history::ParamChange* pc = new history::ParamChange;
                 pc->moduleId = m->id; pc->paramId = s.id;
-                pc->oldValue = m->paramQuantities[s.id]->getValue(); pc->newValue = s.v;
-                m->paramQuantities[s.id]->setValue (s.v);
+                pc->oldValue = before; pc->newValue = m->paramQuantities[s.id]->getValue();   // as stored (clamped/snapped)
                 all->push (pc);
             }
-            pushUndo (all);   // never empty: the sound params are always recorded
+            if (all->isEmpty()) delete all; else APP->history->push (all);
         }));
     }
 };
