@@ -17,5 +17,6 @@ if ($W -gt 0) {
     $bmp = New-Object System.Drawing.Bitmap ($W * $Scale), ($H * $Scale)
     $g2 = [System.Drawing.Graphics]::FromImage($bmp); $g2.InterpolationMode = 'NearestNeighbor'; $g2.DrawImage($c, 0, 0, $W * $Scale, $H * $Scale)
 }
-$out = Join-Path "$env:USERPROFILE\Desktop\screenshots" "$Name.png"
+$dir = New-Item -ItemType Directory -Force "$env:USERPROFILE\Desktop\screenshots"
+$out = Join-Path $dir.FullName "$Name.png"
 $bmp.Save($out); $out

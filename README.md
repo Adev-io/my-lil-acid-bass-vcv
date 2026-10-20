@@ -48,9 +48,11 @@ Needs MSYS2 (mingw64) and the Rack 2 SDK.
 export RACK_DIR=/c/dev/Rack-SDK
 make test      # core checks: voice, sequencer, clock, notation (against the FL plugin's own reference numbers)
 make install   # builds and copies the plugin into Rack's plugins folder
+make dist      # builds the .vcvplugin package into dist/
 ```
 
-`core/` holds the DSP and sequencer with no Rack code in it; `src/` is the Rack module and panel.
+`core/` holds the DSP and sequencer with no Rack code in it; `src/` is the Rack module and panel. `tools/rig/` is
+Windows-only dev tooling for hands-on checks in an isolated Rack; it is not part of the plugin package.
 
 ## License
 

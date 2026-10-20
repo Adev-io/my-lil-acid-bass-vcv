@@ -1,8 +1,9 @@
 # Rack rig (Windows, dev only)
 
-Drives an isolated VCV Rack 2 Free to check the module by hand-free clicks. Never touches %LOCALAPPDATA%\Rack2.
+Drives an isolated VCV Rack 2 Free to check the module by hand-free clicks. Never writes to %LOCALAPPDATA%\Rack2
+(`-Extra` only copies plugins out of it). Run the commands from the repo root.
 
-1. `make dist` (see the main README), then `pwsh -File tools/rig/launch.ps1 -Patch tools/rig/patches/one-module.vcv` → prints `pid=` and `dir=`.
+1. `make dist` (see the main README's Build section), then `pwsh -File tools/rig/launch.ps1 -Patch tools/rig/patches/one-module.vcv` → prints `pid=` and `dir=`.
 2. `pwsh -File tools/rig/cap.ps1 -ProcId <pid> -Name <name>` → full-window PNG in Desktop\screenshots. Read pixel positions off it.
 3. `click.ps1 -ProcId <pid> -ImgX <x> -ImgY <y> [-Button Right]`, `type.ps1 -ProcId <pid> -Text 5` (Enter is sent too).
 4. `state.ps1 -Dir <dir>` → LENGTH / PATTERN / slot lengths from Rack's autosave (wait 17 s after an action).
