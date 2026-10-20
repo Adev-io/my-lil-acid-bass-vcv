@@ -275,6 +275,41 @@ struct AcidBass : Module
 };
 
 // ---------------------------------------------------------------------------------------------------------------------
+// Undo for pattern edits (grid clicks, paste, clear, demo set). Rack itself records knob turns as parameter changes, so
+// the LENGTH knob's sync in AcidBassWidget::step() records nothing: recording it too would need two Undos per turn.
+// Actions hold the moduleId, never a pointer: Rack may delete and restore the module between push and undo.
+
+struct PatternChange : history::ModuleAction
+{
+    int slot = 0;
+    Pattern before, after;
+    void set (const Pattern& p) const
+    {
+        AcidBass* m = dynamic_cast<AcidBass*> (APP->engine->getModule (moduleId));
+        if (m) m->edit (slot, [&] (Pattern& dst) { dst = p; });
+    }
+    void undo() override { set (before); }
+    void redo() override { set (after); }
+};
+
+// Applies f to one slot through edit() and returns the undo step for it, or nullptr if f changed nothing
+// (for example, a click on the step number that already is the length). UI thread only, like edit().
+template <typename F>
+static PatternChange* editRecorded (AcidBass* m, int slot, const char* name, F f)
+{
+    slot = clamp (slot, 0, acidseq::slots - 1);
+    PatternChange* a = new PatternChange;
+    a->moduleId = m->id; a->slot = slot; a->name = name;
+    a->before = m->bank[slot];
+    m->edit (slot, f);
+    a->after = m->bank[slot];
+    if (acidseq::toJson (a->before) == acidseq::toJson (a->after)) { delete a; return nullptr; }
+    return a;
+}
+
+static void pushUndo (history::Action* a) { if (a) APP->history->push (a); }
+
+// ---------------------------------------------------------------------------------------------------------------------
 // The step grid: header row (click sets the length), 13 pitch rows C' .. C, then lanes TIE, OCT, ACC, SLD.
 
 static const int gridRows = 18, pitchTop = 1, laneTie = 14, laneOct = 15, laneAcc = 16, laneSld = 17;
@@ -295,7 +330,7 @@ struct StepGrid : OpaqueWidget
         const int col = (int) std::floor ((e.pos.x - labelW()) / colW()), row = (int) std::floor (e.pos.y / rowH());
         if (col < 0 || col >= acidseq::maxSteps || row < 0 || row >= gridRows) { OpaqueWidget::onButton (e); return; }
         e.consume (this);
-        module->edit (module->curSlot.load(), [&] (Pattern& p) {
+        pushUndo (editRecorded (module, module->curSlot.load(), row == 0 ? "set pattern length" : "edit step", [&] (Pattern& p) {
             Step& s = p.steps[col];
             if (row == 0) p.len = col + 1;
             else if (row < laneTie)
@@ -308,7 +343,7 @@ struct StepGrid : OpaqueWidget
             else if (row == laneOct) s.oct = s.oct == 0 ? 1 : s.oct == 1 ? -1 : 0;
             else if (row == laneAcc) s.accent = ! s.accent;
             else if (row == laneSld) s.slide = ! s.slide;
-        });
+        }));
     }
 
     void drawLayer (const DrawArgs& args, int layer) override
@@ -511,18 +546,33 @@ struct AcidBassWidget : ModuleWidget
                 osdialog_message (OSDIALOG_WARNING, OSDIALOG_OK, "The clipboard holds no pattern.\n\nUse step notation (for example: A* - A A^ - A_* A - G~ A) or a pattern's JSON from the web app.");
                 return;
             }
-            m->edit (slot, [&] (Pattern& dst) { dst = p; });
+            pushUndo (editRecorded (m, slot, "paste pattern", [&] (Pattern& dst) { dst = p; }));
         }));
-        menu->addChild (createMenuItem ("Clear pattern", "", [=]() { m->edit (slot, [] (Pattern& dst) { dst = Pattern(); }); }));
+        menu->addChild (createMenuItem ("Clear pattern", "", [=]() { pushUndo (editRecorded (m, slot, "clear pattern", [] (Pattern& dst) { dst = Pattern(); })); }));
         menu->addChild (new MenuSeparator);
         menu->addChild (createMenuItem ("Load demo set (I-A1..I-A6, and its sound)", "", [=]() {
-            for (int i = 0; i < 6; ++i) { Pattern p; if (acidseq::parseNotation (acidseq::demo[i], p)) m->edit (i, [&] (Pattern& dst) { dst = p; }); }
+            history::ComplexAction* all = new history::ComplexAction;
+            all->name = "load demo set";
+            for (int i = 0; i < 6; ++i)
+            {
+                Pattern p;
+                if (! acidseq::parseNotation (acidseq::demo[i], p)) continue;
+                if (PatternChange* a = editRecorded (m, i, "load demo set", [&] (Pattern& dst) { dst = p; })) all->push (a);
+            }
             const struct { int id; float v; } sound[] = {
                 { AcidBass::CUTOFF_PARAM, cutoffKnob (265.3f) }, { AcidBass::RES_PARAM, 0.72f }, { AcidBass::ENVMOD_PARAM, 0.75f },
                 { AcidBass::DECAY_PARAM, 0.59f }, { AcidBass::ACCENT_PARAM, 0.8f }, { AcidBass::VOLUME_PARAM, 0.7f },
                 { AcidBass::TEMPO_PARAM, 134.f }, { AcidBass::PATTERN_PARAM, 0.f },
             };
-            for (const auto& s : sound) m->paramQuantities[s.id]->setValue (s.v);
+            for (const auto& s : sound)
+            {
+                history::ParamChange* pc = new history::ParamChange;
+                pc->moduleId = m->id; pc->paramId = s.id;
+                pc->oldValue = m->paramQuantities[s.id]->getValue(); pc->newValue = s.v;
+                m->paramQuantities[s.id]->setValue (s.v);
+                all->push (pc);
+            }
+            pushUndo (all);   // never empty: the sound params are always recorded
         }));
     }
 };
