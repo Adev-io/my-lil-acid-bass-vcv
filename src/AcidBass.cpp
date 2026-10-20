@@ -56,7 +56,9 @@ struct AcidBass : Module
     enum ParamId { TUNE_PARAM, CUTOFF_PARAM, RES_PARAM, ENVMOD_PARAM, DECAY_PARAM, ACCENT_PARAM, VOLUME_PARAM, WAVE_PARAM,
         FATK_PARAM, FSUS_PARAM, FREL_PARAM, AATK_PARAM, ADEC_PARAM, ASUS_PARAM, AREL_PARAM,
         HP_PARAM, KFOL_PARAM, MIND_PARAM, PW_PARAM, LFOR_PARAM, LFOPW_PARAM,
-        TEMPO_PARAM, SWING_PARAM, GATE_PARAM, PATTERN_PARAM, RUN_PARAM, RESET_PARAM, PARAMS_LEN };
+        TEMPO_PARAM, SWING_PARAM, GATE_PARAM, PATTERN_PARAM, RUN_PARAM, RESET_PARAM,
+        LENGTH_PARAM,   // last, so patches saved before it keep their param ids
+        PARAMS_LEN };
     enum InputId { CLOCK_INPUT, RESET_INPUT, PATTERN_INPUT, VOCT_INPUT, GATE_INPUT, ACCENT_INPUT,
         CUTOFF_CV_INPUT, RES_CV_INPUT, ENVMOD_CV_INPUT, DECAY_CV_INPUT, ACCENT_CV_INPUT, INPUTS_LEN };
     enum OutputId { SEQ_VOCT_OUTPUT, SEQ_GATE_OUTPUT, SEQ_ACCENT_OUTPUT, AUDIO_OUTPUT, OUTPUTS_LEN };
@@ -114,6 +116,9 @@ struct AcidBass : Module
         configButton (RESET_PARAM, "Reset to step 1");
         paramQuantities[RUN_PARAM]->randomizeEnabled = false;
         paramQuantities[PATTERN_PARAM]->randomizeEnabled = false;
+        configParam (LENGTH_PARAM, 1.f, acidseq::maxSteps, 16.f, "Pattern length", " steps");   // mirrors the playing pattern's length (see the widget's step())
+        paramQuantities[LENGTH_PARAM]->snapEnabled = true;
+        paramQuantities[LENGTH_PARAM]->randomizeEnabled = false;
         configInput (CLOCK_INPUT, "Clock (one pulse per 16th; replaces the tempo knob)");
         configInput (RESET_INPUT, "Reset");
         configInput (PATTERN_INPUT, "Pattern select (0-10 V across the 32 slots, added to the knob)");
@@ -398,7 +403,7 @@ struct PanelLabels : TransparentWidget
             { "A.ATK", 45.f, 93.f, 7.5f }, { "A.DEC", 55.f, 93.f, 7.5f }, { "A.SUS", 65.f, 93.f, 7.5f }, { "A.REL", 75.f, 93.f, 7.5f },
             { "HP", 89.f, 93.f, 7.5f }, { "KEY", 99.f, 93.f, 7.5f }, { "MIN.D", 109.f, 93.f, 7.5f }, { "PW", 119.f, 93.f, 7.5f },
             { "LFO", 129.f, 93.f, 7.5f }, { "LFO>PW", 139.f, 93.f, 7.5f },
-            { "PATTERN", 155.f, 93.f, 7.5f }, { "RUN", 172.f, 93.f, 7.5f }, { "RESET", 188.f, 93.f, 7.5f },
+            { "PATTERN", 153.f, 93.f, 7.5f }, { "LENGTH", 165.f, 93.f, 7.5f }, { "RUN", 177.f, 93.f, 7.5f }, { "RESET", 189.f, 93.f, 7.5f },
             { "SEQ IN", 22.f, 98.5f, 7.5f }, { "PLAY IN", 59.f, 98.5f, 7.5f }, { "CV IN", 107.f, 98.5f, 7.5f }, { "SEQ OUT", 159.f, 98.5f, 7.5f }, { "OUT", 189.f, 98.5f, 7.5f },
             { "CLOCK", 11.f, 111.5f, 7.5f }, { "RESET", 22.f, 111.5f, 7.5f }, { "PAT", 33.f, 111.5f, 7.5f },
             { "V/OCT", 48.f, 111.5f, 7.5f }, { "GATE", 59.f, 111.5f, 7.5f }, { "ACC", 70.f, 111.5f, 7.5f },
@@ -437,14 +442,31 @@ struct AcidBassWidget : ModuleWidget
 
         const float trim[13] = { 11.f, 21.f, 31.f, 45.f, 55.f, 65.f, 75.f, 89.f, 99.f, 109.f, 119.f, 129.f, 139.f };
         for (int i = 0; i < 13; ++i) addParam (createParamCentered<Trimpot> (mm2px (Vec (trim[i], r2)), module, AcidBass::FATK_PARAM + i));
-        addParam (createParamCentered<RoundSmallBlackKnob> (mm2px (Vec (155.f, r2)), module, AcidBass::PATTERN_PARAM));
-        addParam (createLightParamCentered<VCVLightLatch<MediumSimpleLight<WhiteLight>>> (mm2px (Vec (172.f, r2)), module, AcidBass::RUN_PARAM, AcidBass::RUN_LIGHT));
-        addParam (createParamCentered<VCVButton> (mm2px (Vec (188.f, r2)), module, AcidBass::RESET_PARAM));
+        addParam (createParamCentered<RoundSmallBlackKnob> (mm2px (Vec (153.f, r2)), module, AcidBass::PATTERN_PARAM));
+        addParam (createParamCentered<RoundSmallBlackKnob> (mm2px (Vec (165.f, r2)), module, AcidBass::LENGTH_PARAM));
+        addParam (createLightParamCentered<VCVLightLatch<MediumSimpleLight<WhiteLight>>> (mm2px (Vec (177.f, r2)), module, AcidBass::RUN_PARAM, AcidBass::RUN_LIGHT));
+        addParam (createParamCentered<VCVButton> (mm2px (Vec (189.f, r2)), module, AcidBass::RESET_PARAM));
 
         const float ins[11] = { 11.f, 22.f, 33.f, 48.f, 59.f, 70.f, 85.f, 96.f, 107.f, 118.f, 129.f };
         for (int i = 0; i < 11; ++i) addInput (createInputCentered<PJ301MPort> (mm2px (Vec (ins[i], r3)), module, AcidBass::CLOCK_INPUT + i));
         const float outs[4] = { 148.f, 159.f, 170.f, 189.f };
         for (int i = 0; i < 4; ++i) addOutput (createOutputCentered<PJ301MPort> (mm2px (Vec (outs[i], r3)), module, AcidBass::SEQ_VOCT_OUTPUT + i));
+    }
+
+    // LENGTH knob <-> the playing pattern's length, on the UI thread (the only pattern writer). A turn of the knob sets
+    // the length; anything else that changes it (another slot, a header click, a paste) moves the knob to match.
+    int lastKnob = -1, lastSlot = -1;
+    void step() override
+    {
+        ModuleWidget::step();
+        AcidBass* m = dynamic_cast<AcidBass*> (module);
+        if (! m) return;
+        const int slot = m->curSlot.load();
+        Param& knob = m->params[AcidBass::LENGTH_PARAM];
+        const int k = (int) std::round (knob.getValue()), len = clamp (m->bank[slot].len, 1, acidseq::maxSteps);
+        if (k != lastKnob && slot == lastSlot) { if (k != len) m->edit (slot, [&] (Pattern& p) { p.len = k; }); }
+        else if (k != len) knob.setValue ((float) len);
+        lastKnob = (int) std::round (knob.getValue()); lastSlot = slot;
     }
 
     void appendContextMenu (Menu* menu) override

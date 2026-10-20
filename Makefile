@@ -1,4 +1,4 @@
-RACK_DIR ?= /c/dev/Rack-SDK
+RACK_DIR ?= ../..
 FLAGS += -Icore
 SOURCES += $(wildcard src/*.cpp)
 DISTRIBUTABLES += res LICENSE

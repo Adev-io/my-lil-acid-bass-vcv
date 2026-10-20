@@ -2,7 +2,7 @@
 
 **by A_Development**
 
-The 303-style acid voice and 32-step acid sequencer from [My lil acid bassline](https://adev-io.github.io/my-lil-acid-bassline/)
+The acid bass voice and 32-step acid sequencer from [My lil acid bassline](https://adev-io.github.io/my-lil-acid-bassline/)
 as one VCV Rack 2 module. Same voice and the same sequencing rules as the web app and the FL Studio VST3, so a pattern
 sounds the same in all three. The FL Studio build lives in its own repo and is not touched by this one.
 
@@ -10,14 +10,15 @@ sounds the same in all three. The FL Studio build lives in its own repo and is n
 
 **Step grid.** 32 steps. Click a pitch cell to place a note (click it again to remove it). Lanes under the keys:
 **TIE** holds the previous note, **OCT** cycles up / down / normal, **ACC** accent, **SLD** slide into the next note.
-Click a step number in the top row to set the pattern length. The lit column is the step playing.
+Set the pattern length (1-32 steps) with the LENGTH knob, or click a step number in the top row; the knob follows
+whichever pattern is playing. The lit column is the step playing.
 
 **Voice.** Tune, Cutoff, Res, Env Mod, Decay, Accent, Volume, Saw/Square. Second row: filter attack / sustain / release,
 amp attack / decay / sustain / release, HP (input high-pass), Key follow, Min decay, Pulse width, LFO rate, LFO to PW.
 Hover a knob for its value in Hz, seconds or percent.
 
 **Sequencer.** Tempo (40-300 BPM, used when CLOCK is not patched), Swing, Gate length (55 % at noon, like the 303),
-Pattern (32 slots, I-A1 to II-B8), Run, Reset.
+Pattern (32 slots, I-A1 to II-B8), Length (steps in the playing pattern), Run, Reset.
 
 **Inputs.**
 - SEQ IN: CLOCK (one pulse per 16th; replaces the Tempo knob), RESET, PAT (0-10 V picks a slot, added to the knob).
