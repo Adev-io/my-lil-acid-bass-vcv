@@ -36,7 +36,9 @@ ties), and AUDIO (±5 V).
 Step notation, one token per step: `C`..`B` note, `C'` high C, `^` `_` octave up / down, `*` accent, `~` slide,
 `-` rest, `=` tie. Example: `A* - A A^ - A_* A - G~ A - A* - C^ - E~`.
 
-Patterns are saved with the patch.
+Patterns are saved with the patch. Edit → Undo / Redo (Ctrl+Z / Ctrl+Shift+Z) covers grid clicks, paste, clear and
+Load demo set as well as the knobs. **Initialize** (right-click → Initialize, Ctrl+I) resets the knobs **and clears all
+32 patterns**; Undo brings them back.
 
 ## Build
 
