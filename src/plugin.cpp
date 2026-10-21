@@ -1,3 +1,3 @@
 #include "plugin.hpp"
 Plugin* pluginInstance;
-void init(Plugin* p) { pluginInstance = p; p->addModel(modelAcidBass); }
+void init(Plugin* p) { pluginInstance = p; p->addModel(modelAcidBass); p->addModel(modelAcidVoice); }

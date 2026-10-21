@@ -54,16 +54,19 @@ public:
     }
 
     bool active() const { return gate || ampEnv > 1.0e-4f; }
+    bool accentedNow() const { return gate && accented; }
+    float filterEnv() const { return filtEnv; }
 
     // A note that arrives while another is held glides to the new pitch without restarting the envelope (the 303 slide).
-    void noteOn (int note, float velocity01, const AcidParams& p)
+    // forceLegato does the same after a rest: glide in from the last pitch, keep the envelopes running.
+    void noteOn (int note, float velocity01, const AcidParams& p, bool forceLegato = false)
     {
-        const bool legato = ! held.empty();
+        const bool legato = forceLegato || ! held.empty();
         held.erase (std::remove (held.begin(), held.end(), note), held.end());
         held.push_back (note);
         targetFreq = freqOf (note, p.tuneCents);
         accented = velocity01 >= 110.0f / 127.0f;
-        if (legato) return;
+        if (legato) { gate = true; return; }
         keyMulNow = (float) acidmaps::keyMul (p.keyFollow, note);
         freq = targetFreq;
         sweep = accented ? std::min (1.0f, sweep + 0.35f) : sweep * 0.5f;

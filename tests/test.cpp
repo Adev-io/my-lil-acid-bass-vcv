@@ -177,6 +177,19 @@ int main()
         const double dip = rms (a, (int) (0.30 * sr), (int) (0.32 * sr)) / rms (a, (int) (0.2 * sr), (int) (0.28 * sr));
         check (dip > 0.6, "no re-attack on a slide (level holds)", dip);
     }
+    {   // forced legato (the Acid Voice module's SLIDE input): after a rest, glide in without restarting the envelope
+        AcidParams p = defaults(); p.envmod = 0.0f; p.cutoffHz = 4000.0f;
+        AcidVoice v; v.prepare (sr); v.setParams (p);
+        std::vector<float> a;
+        auto run = [&] (double sec) { for (int i = 0; i < (int) (sec * sr); ++i) a.push_back (v.process()); };
+        v.noteOn (45, 0.7f, p); run (0.3); v.noteOff (45, p); run (0.05);
+        v.noteOn (52, 0.7f, p, true);
+        check (v.filterEnv() < 0.5f && v.active(), "forced legato keeps the filter envelope where it was and gates on", v.filterEnv());
+        run (0.4);
+        check (std::abs (hz (a, (int) (0.55 * sr), (int) (0.74 * sr)) - 164.8) < 8.0, "forced legato lands on E3", hz (a, (int) (0.55 * sr), (int) (0.74 * sr)));
+        v.noteOff (52, p); run (0.3);
+        check (! v.active(), "and lets go on note off", v.active());
+    }
     {   // tweaks stay finite at the extremes, square with LFO on the width
         AcidParams p = defaults(); p.square = true; p.pw = 0.05f; p.lfoPw = 1.0f; p.lfoHz = 20.0f; p.res = 1.0f; p.hpHz = 500.0f; p.keyFollow = 1.0f;
         const auto a = renderRack (p, 0.5, { { 0, true, 84, 127 } });

@@ -3,6 +3,7 @@
 #include "AcidVoice.h"
 #include "Clock.h"
 #include "Sequencer.h"
+#include "layout.hpp"
 #include "plugin.hpp"
 #include <osdialog.h>
 #include <atomic>
@@ -13,10 +14,6 @@
 using acidseq::Gate;
 using acidseq::Pattern;
 using acidseq::Step;
-
-static const float cutLo = 60.f, cutHi = 8000.f;   // the plugin's cutoff range, exponential on the knob
-static float cutoffKnob (float hz) { return std::log (hz / cutLo) / std::log (cutHi / cutLo); }
-static float decayKnob (float sec) { return std::log (sec / 0.03f) / std::log (83.f); }   // inverse of acidmaps::envDecSec
 
 // cleanPattern() of the web app: anything missing or out of range comes out as a playable default.
 static Pattern patternFromJson (json_t* v)
@@ -62,7 +59,7 @@ struct AcidBass : Module
     enum InputId { CLOCK_INPUT, RESET_INPUT, PATTERN_INPUT, VOCT_INPUT, GATE_INPUT, ACCENT_INPUT,
         CUTOFF_CV_INPUT, RES_CV_INPUT, ENVMOD_CV_INPUT, DECAY_CV_INPUT, ACCENT_CV_INPUT, INPUTS_LEN };
     enum OutputId { SEQ_VOCT_OUTPUT, SEQ_GATE_OUTPUT, SEQ_ACCENT_OUTPUT, AUDIO_OUTPUT, OUTPUTS_LEN };
-    enum LightId { RUN_LIGHT, LIGHTS_LEN };
+    enum LightId { RUN_LIGHT, SQUARE_LIGHT, ENV_LIGHT, LIGHTS_LEN };
 
     // Patterns: the UI thread is the only writer (under bankMutex, then bankRev++). The audio thread copies the playing slot
     // with try_lock only when it changed, so it never waits on the UI.
@@ -241,6 +238,8 @@ struct AcidBass : Module
         outputs[SEQ_GATE_OUTPUT].setVoltage (seqGate ? 10.f : 0.f);
         outputs[SEQ_ACCENT_OUTPUT].setVoltage (seqGate && seqAcc ? 10.f : 0.f);
         lights[RUN_LIGHT].setBrightness (run ? 1.f : 0.f);
+        lights[SQUARE_LIGHT].setBrightness (ap.square ? 1.f : 0.f);
+        lights[ENV_LIGHT].setBrightnessSmooth (voice.filterEnv(), args.sampleTime);
     }
 
     void onReset() override   // engine is paused
@@ -365,12 +364,12 @@ struct StepGrid : OpaqueWidget
         {
             const bool in = c < p.len;
             NVGcolor bg = ! in ? nvgRGB (22, 22, 24) : (c / 4) % 2 ? nvgRGB (36, 36, 40) : nvgRGB (46, 46, 52);
-            if (c == step) bg = nvgRGB (90, 80, 50);
+            if (c == step) bg = nvgRGB (66, 84, 28);
             for (int r = 1; r < gridRows; ++r) cell (c, r, bg, 0.5f);
             cell (c, 0, in ? nvgRGB (70, 70, 78) : nvgRGB (30, 30, 34), 0.5f);
         }
         for (int r = laneTie; r < gridRows; ++r) { nvgBeginPath (vg); nvgRect (vg, 0, r * rh, box.size.x, 0.6f); nvgFillColor (vg, nvgRGB (90, 90, 96)); nvgFill (vg); }
-        const NVGcolor noteCol = nvgRGB (240, 170, 40), accCol = nvgRGB (255, 80, 40), dimCol = nvgRGB (120, 90, 40), laneCol = nvgRGB (90, 200, 230);
+        const NVGcolor noteCol = nvgRGB (200, 255, 58), accCol = nvgRGB (255, 61, 154), dimCol = nvgRGB (96, 120, 36), laneCol = nvgRGB (90, 200, 230);
         const int L = std::max (1, p.len);
         for (int c = 0; c < acidseq::maxSteps; ++c)
         {
@@ -398,7 +397,7 @@ struct StepGrid : OpaqueWidget
             nvgTextAlign (vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
             static const char* names[13] = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B", "C'" };
             static const char* lanes[4] = { "TIE", "OCT", "ACC", "SLD" };
-            nvgFillColor (vg, nvgRGB (230, 200, 120));
+            nvgFillColor (vg, nvgRGB (200, 255, 58));
             nvgText (vg, lw * 0.5f, rh * 0.5f, acidseq::slotName (slot).c_str(), NULL);
             for (int r = 0; r < 13; ++r)
             {
@@ -421,72 +420,47 @@ struct StepGrid : OpaqueWidget
     }
 };
 
-// Static panel text in nanovg (Rack does not draw SVG <text>). Positions in mm, centred.
-struct PanelLabels : TransparentWidget
-{
-    std::shared_ptr<Font> font;
-    void draw (const DrawArgs& args) override
-    {
-        if (! font) font = APP->window->loadFont (asset::system ("res/fonts/ShareTechMono-Regular.ttf"));
-        if (! font || font->handle < 0) return;
-        struct L { const char* text; float xmm, ymm, size; };
-        static const L labels[] = {
-            { "MY LIL ACID BASS", 101.6f, 5.5f, 12.f },
-            { "TUNE", 13.f, 78.5f, 9.f }, { "CUTOFF", 31.f, 78.5f, 9.f }, { "RES", 49.f, 78.5f, 9.f }, { "ENV MOD", 67.f, 78.5f, 9.f },
-            { "DECAY", 85.f, 78.5f, 9.f }, { "ACCENT", 103.f, 78.5f, 9.f }, { "VOLUME", 121.f, 78.5f, 9.f }, { "WAVE", 137.f, 78.5f, 9.f },
-            { "TEMPO", 155.f, 78.5f, 9.f }, { "SWING", 172.f, 78.5f, 9.f }, { "GATE", 188.f, 78.5f, 9.f },
-            { "F.ATK", 11.f, 93.f, 7.5f }, { "F.SUS", 21.f, 93.f, 7.5f }, { "F.REL", 31.f, 93.f, 7.5f },
-            { "A.ATK", 45.f, 93.f, 7.5f }, { "A.DEC", 55.f, 93.f, 7.5f }, { "A.SUS", 65.f, 93.f, 7.5f }, { "A.REL", 75.f, 93.f, 7.5f },
-            { "HP", 89.f, 93.f, 7.5f }, { "KEY", 99.f, 93.f, 7.5f }, { "MIN.D", 109.f, 93.f, 7.5f }, { "PW", 119.f, 93.f, 7.5f },
-            { "LFO", 129.f, 93.f, 7.5f }, { "LFO>PW", 139.f, 93.f, 7.5f },
-            { "PATTERN", 153.f, 93.f, 7.5f }, { "LENGTH", 165.f, 93.f, 7.5f }, { "RUN", 177.f, 93.f, 7.5f }, { "RESET", 189.f, 93.f, 7.5f },
-            { "SEQ IN", 22.f, 98.5f, 7.5f }, { "PLAY IN", 59.f, 98.5f, 7.5f }, { "CV IN", 107.f, 98.5f, 7.5f }, { "SEQ OUT", 159.f, 98.5f, 7.5f }, { "OUT", 189.f, 98.5f, 7.5f },
-            { "CLOCK", 11.f, 111.5f, 7.5f }, { "RESET", 22.f, 111.5f, 7.5f }, { "PAT", 33.f, 111.5f, 7.5f },
-            { "V/OCT", 48.f, 111.5f, 7.5f }, { "GATE", 59.f, 111.5f, 7.5f }, { "ACC", 70.f, 111.5f, 7.5f },
-            { "CUT", 85.f, 111.5f, 7.5f }, { "RES", 96.f, 111.5f, 7.5f }, { "ENV", 107.f, 111.5f, 7.5f }, { "DEC", 118.f, 111.5f, 7.5f }, { "ACC", 129.f, 111.5f, 7.5f },
-            { "V/OCT", 148.f, 111.5f, 7.5f }, { "GATE", 159.f, 111.5f, 7.5f }, { "ACC", 170.f, 111.5f, 7.5f }, { "AUDIO", 189.f, 111.5f, 7.5f },
-            { "A_DEVELOPMENT", 101.6f, 121.f, 8.f },
-        };
-        NVGcontext* vg = args.vg;
-        nvgFontFaceId (vg, font->handle); nvgTextAlign (vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE); nvgFillColor (vg, nvgRGB (34, 34, 34));
-        for (const L& l : labels) { nvgFontSize (vg, l.size); Vec p = mm2px (Vec (l.xmm, l.ymm)); nvgText (vg, p.x, p.y, l.text, NULL); }
-    }
-};
-
 struct AcidBassWidget : ModuleWidget
 {
     AcidBassWidget (AcidBass* module)
     {
         setModule (module);
         setPanel (createPanel (asset::plugin (pluginInstance, "res/AcidBass.svg")));
-        { PanelLabels* pl = createWidget<PanelLabels> (Vec (0, 0)); pl->box.size = box.size; addChild (pl); }
-        addChild (createWidget<ScrewSilver> (Vec (RACK_GRID_WIDTH, 0)));
-        addChild (createWidget<ScrewSilver> (Vec (box.size.x - 2 * RACK_GRID_WIDTH, 0)));
-        addChild (createWidget<ScrewSilver> (Vec (RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-        addChild (createWidget<ScrewSilver> (Vec (box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+        addChild (createWidget<ScrewBlack> (Vec (RACK_GRID_WIDTH, 0)));
+        addChild (createWidget<ScrewBlack> (Vec (box.size.x - 2 * RACK_GRID_WIDTH, 0)));
+        addChild (createWidget<ScrewBlack> (Vec (RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+        addChild (createWidget<ScrewBlack> (Vec (box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
         StepGrid* g = createWidget<StepGrid> (mm2px (Vec (5.f, 10.f)));
         g->box.size = mm2px (Vec (193.2f, 50.f)); g->module = module; addChild (g);
 
-        const float r1 = 70.f, r2 = 87.f, r3 = 105.f;
-        const float big[7] = { 13.f, 31.f, 49.f, 67.f, 85.f, 103.f, 121.f };
-        for (int i = 0; i < 7; ++i) addParam (createParamCentered<RoundBlackKnob> (mm2px (Vec (big[i], r1)), module, AcidBass::TUNE_PARAM + i));
-        addParam (createParamCentered<CKSS> (mm2px (Vec (137.f, r1)), module, AcidBass::WAVE_PARAM));
-        addParam (createParamCentered<RoundBlackKnob> (mm2px (Vec (155.f, r1)), module, AcidBass::TEMPO_PARAM));
-        addParam (createParamCentered<RoundSmallBlackKnob> (mm2px (Vec (172.f, r1)), module, AcidBass::SWING_PARAM));
-        addParam (createParamCentered<RoundSmallBlackKnob> (mm2px (Vec (188.f, r1)), module, AcidBass::GATE_PARAM));
+        namespace L = layout::bass;
+        auto at = [] (const float* mm) { return mm2px (Vec (mm[0], mm[1])); };
+        addChild (glowRing (at (L::CUTOFF_PARAM), module, AcidBass::ENV_LIGHT, 8.8f));
+        addParam (createParamCentered<Rogan1PSWhite> (at (L::TUNE_PARAM), module, AcidBass::TUNE_PARAM));
+        addParam (createParamCentered<Rogan3PSRed> (at (L::CUTOFF_PARAM), module, AcidBass::CUTOFF_PARAM));
+        addParam (createParamCentered<Rogan1PSWhite> (at (L::RES_PARAM), module, AcidBass::RES_PARAM));
+        addParam (createParamCentered<Rogan1PSWhite> (at (L::ENVMOD_PARAM), module, AcidBass::ENVMOD_PARAM));
+        addParam (createParamCentered<Rogan1PSWhite> (at (L::DECAY_PARAM), module, AcidBass::DECAY_PARAM));
+        addParam (createParamCentered<Rogan1PSWhite> (at (L::ACCENT_PARAM), module, AcidBass::ACCENT_PARAM));
+        addParam (createParamCentered<Rogan1PSWhite> (at (L::VOLUME_PARAM), module, AcidBass::VOLUME_PARAM));
+        addParam (createLightParamCentered<VCVLightLatch<MediumSimpleLight<LimeLight>>> (at (L::WAVE_PARAM), module, AcidBass::WAVE_PARAM, AcidBass::SQUARE_LIGHT));
+        addParam (createParamCentered<Rogan1PSBlue> (at (L::TEMPO_PARAM), module, AcidBass::TEMPO_PARAM));
+        addParam (createParamCentered<BefacoTinyKnob> (at (L::SWING_PARAM), module, AcidBass::SWING_PARAM));
+        addParam (createParamCentered<BefacoTinyKnob> (at (L::GATE_PARAM), module, AcidBass::GATE_PARAM));
+        static const float* const trims[13] = { L::FATK_PARAM, L::FSUS_PARAM, L::FREL_PARAM, L::AATK_PARAM, L::ADEC_PARAM, L::ASUS_PARAM, L::AREL_PARAM,
+            L::HP_PARAM, L::KFOL_PARAM, L::MIND_PARAM, L::PW_PARAM, L::LFOR_PARAM, L::LFOPW_PARAM };
+        for (int i = 0; i < 13; ++i) addParam (createParamCentered<Trimpot> (at (trims[i]), module, AcidBass::FATK_PARAM + i));
+        addParam (createParamCentered<BefacoTinyKnob> (at (L::PATTERN_PARAM), module, AcidBass::PATTERN_PARAM));
+        addParam (createParamCentered<BefacoTinyKnob> (at (L::LENGTH_PARAM), module, AcidBass::LENGTH_PARAM));
+        addParam (createLightParamCentered<VCVLightLatch<MediumSimpleLight<BlueLight>>> (at (L::RUN_PARAM), module, AcidBass::RUN_PARAM, AcidBass::RUN_LIGHT));
+        addParam (createParamCentered<VCVButton> (at (L::RESET_PARAM), module, AcidBass::RESET_PARAM));
 
-        const float trim[13] = { 11.f, 21.f, 31.f, 45.f, 55.f, 65.f, 75.f, 89.f, 99.f, 109.f, 119.f, 129.f, 139.f };
-        for (int i = 0; i < 13; ++i) addParam (createParamCentered<Trimpot> (mm2px (Vec (trim[i], r2)), module, AcidBass::FATK_PARAM + i));
-        addParam (createParamCentered<RoundSmallBlackKnob> (mm2px (Vec (153.f, r2)), module, AcidBass::PATTERN_PARAM));
-        addParam (createParamCentered<RoundSmallBlackKnob> (mm2px (Vec (165.f, r2)), module, AcidBass::LENGTH_PARAM));
-        addParam (createLightParamCentered<VCVLightLatch<MediumSimpleLight<WhiteLight>>> (mm2px (Vec (177.f, r2)), module, AcidBass::RUN_PARAM, AcidBass::RUN_LIGHT));
-        addParam (createParamCentered<VCVButton> (mm2px (Vec (189.f, r2)), module, AcidBass::RESET_PARAM));
-
-        const float ins[11] = { 11.f, 22.f, 33.f, 48.f, 59.f, 70.f, 85.f, 96.f, 107.f, 118.f, 129.f };
-        for (int i = 0; i < 11; ++i) addInput (createInputCentered<PJ301MPort> (mm2px (Vec (ins[i], r3)), module, AcidBass::CLOCK_INPUT + i));
-        const float outs[4] = { 148.f, 159.f, 170.f, 189.f };
-        for (int i = 0; i < 4; ++i) addOutput (createOutputCentered<PJ301MPort> (mm2px (Vec (outs[i], r3)), module, AcidBass::SEQ_VOCT_OUTPUT + i));
+        static const float* const ins[11] = { L::CLOCK_INPUT, L::RESET_INPUT, L::PATTERN_INPUT, L::VOCT_INPUT, L::GATE_INPUT, L::ACCENT_INPUT,
+            L::CUTOFF_CV_INPUT, L::RES_CV_INPUT, L::ENVMOD_CV_INPUT, L::DECAY_CV_INPUT, L::ACCENT_CV_INPUT };
+        for (int i = 0; i < 11; ++i) addInput (createInputCentered<PJ301MPort> (at (ins[i]), module, AcidBass::CLOCK_INPUT + i));
+        static const float* const outs[4] = { L::SEQ_VOCT_OUTPUT, L::SEQ_GATE_OUTPUT, L::SEQ_ACCENT_OUTPUT, L::AUDIO_OUTPUT };
+        for (int i = 0; i < 4; ++i) addOutput (createOutputCentered<PJ301MPort> (at (outs[i]), module, AcidBass::SEQ_VOCT_OUTPUT + i));
     }
 
     // LENGTH knob <-> the playing pattern's length, on the UI thread (the only pattern writer). A turn of the knob sets
