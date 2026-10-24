@@ -45,6 +45,7 @@ constexpr float SEQ_VOCT_OUTPUT[2] = {148.00f, 105.00f};
 constexpr float SEQ_GATE_OUTPUT[2] = {159.00f, 105.00f};
 constexpr float SEQ_ACCENT_OUTPUT[2] = {170.00f, 105.00f};
 constexpr float AUDIO_OUTPUT[2] = {189.00f, 105.00f};
+constexpr float FACE[3] = {186.00f, 4.30f, 3.096f};   // mascot centre x, y, radius (TalkingFace)
 }
 namespace voice {
 constexpr float RES_PARAM[2] = {13.50f, 30.00f};

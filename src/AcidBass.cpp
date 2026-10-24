@@ -4,6 +4,7 @@
 #include "Clock.h"
 #include "Sequencer.h"
 #include "layout.hpp"
+#include "TalkingFace.hpp"
 #include "plugin.hpp"
 #include <osdialog.h>
 #include <atomic>
@@ -79,6 +80,7 @@ struct AcidBass : Module
     dsp::ClockDivider paramDiv;
     bool extGate = false, seqGate = false, seqAcc = false, extClock = false;
     int extNote = 60, seqNote = 36;
+    FaceTap face;
 
     AcidBass()
     {
@@ -234,6 +236,7 @@ struct AcidBass : Module
 
         if (event) voice.setParams (ap);   // accent and the decay floor change with the note
         outputs[AUDIO_OUTPUT].setVoltage (5.f * std::tanh (1.6f * voice.process() * ap.volume));
+        face.push (outputs[AUDIO_OUTPUT].getVoltage() / 5.f, args.sampleRate);
         outputs[SEQ_VOCT_OUTPUT].setVoltage ((seqNote - 60) / 12.f);
         outputs[SEQ_GATE_OUTPUT].setVoltage (seqGate ? 10.f : 0.f);
         outputs[SEQ_ACCENT_OUTPUT].setVoltage (seqGate && seqAcc ? 10.f : 0.f);
@@ -430,6 +433,9 @@ struct AcidBassWidget : ModuleWidget
         addChild (createWidget<ScrewBlack> (Vec (box.size.x - 2 * RACK_GRID_WIDTH, 0)));
         addChild (createWidget<ScrewBlack> (Vec (RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
         addChild (createWidget<ScrewBlack> (Vec (box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+
+        TalkingFace* f = createWidget<TalkingFace> (mm2px (Vec (layout::bass::FACE[0] - layout::bass::FACE[2], layout::bass::FACE[1] - layout::bass::FACE[2])));
+        f->box.size = mm2px (Vec (2 * layout::bass::FACE[2], 2 * layout::bass::FACE[2])); if (module) f->tap = &module->face; addChild (f);
 
         StepGrid* g = createWidget<StepGrid> (mm2px (Vec (5.f, 10.f)));
         g->box.size = mm2px (Vec (193.2f, 50.f)); g->module = module; addChild (g);

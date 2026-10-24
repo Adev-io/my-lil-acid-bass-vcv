@@ -149,6 +149,7 @@ def header():
     for name, table in (('bass', BASS), ('voice', VOICE)):
         lines.append('namespace %s {' % name)
         lines += ['constexpr float %s[2] = {%.2ff, %.2ff};' % (i, x, y) for i, _, x, y, _ in table]
+        if name == 'bass': lines.append('constexpr float FACE[3] = {%.2ff, %.2ff, %.3ff};   // mascot centre x, y, radius (TalkingFace)' % (186, 8.6 / 2, 8.6 * 0.36))
         lines.append('}')
     lines += ['}', '']
     return '\n'.join(lines)
@@ -161,6 +162,6 @@ if __name__ == '__main__':
         os.path.join('src', 'layout.hpp'): header(),
     }
     for rel, body in files.items():
-        with open(os.path.join(ROOT, rel), 'w', encoding='utf-8') as f:
+        with open(os.path.join(ROOT, rel), 'w', encoding='utf-8', newline='\n') as f:
             f.write(body)
     print('wrote', ', '.join(files), '(%d + %d components)' % (len(BASS), len(VOICE)))

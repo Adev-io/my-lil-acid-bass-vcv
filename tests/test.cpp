@@ -2,6 +2,7 @@
 // Author: Ari Klopfer / A_Development · MIT
 #include "AcidVoice.h"
 #include "Clock.h"
+#include "FaceTap.h"
 #include "Maps.h"
 #include "Sequencer.h"
 #include <cmath>
@@ -116,8 +117,33 @@ AcidParams defaults()
 }
 }
 
+void faceTapChecks()
+{
+    // 48 kHz: stride = 48000*0.04/48 = 40 samples per point
+    FaceTap t;
+    for (int i = 0; i < 40; ++i) t.push (i == 7 ? 1.f : 0.f, 48000.f);       // one 1-sample pulse inside one stride
+    check (t.buf[0] == 1.f, "FaceTap keeps a pulse shorter than the stride", t.buf[0]);
+    check (t.head == 1, "FaceTap advances one point per stride", t.head);
+
+    FaceTap n;
+    for (int i = 0; i < 40; ++i) n.push (i == 3 ? -0.9f : 0.5f, 48000.f);
+    check (n.buf[0] == -0.9f, "FaceTap keeps the largest magnitude with its sign", n.buf[0]);
+
+    FaceTap w;
+    for (int i = 0; i < 40 * FaceTap::N * 2; ++i) w.push (0.25f, 48000.f);
+    check (w.head == 0, "FaceTap head wraps after N points", w.head);
+
+    FaceTap s;
+    for (int i = 0; i < 39; ++i) s.push (1.f, 48000.f);
+    check (s.head == 0, "FaceTap writes nothing before a full stride", s.head);
+
+    FaceTap lo;
+    lo.push (1.f, 100.f);                                                       // stride clamps to 1 at tiny rates
+    check (lo.head == 1, "FaceTap stride never drops below 1", lo.head);
+}
 int main()
 {
+    faceTapChecks();
     using namespace acidmaps;
     // ---- maps (numbers from the plugin's smoke test) ----
     check (near (hpHz (0), 20) && near (hpHz (0.5), 100) && near (hpHz (1), 500), "hpHz");
