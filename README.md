@@ -23,13 +23,13 @@ whichever pattern is playing. The lit column is the step playing.
 **Voice.** Tune, Cutoff, Res, Env Mod, Decay, Accent, Volume, Square. Second row: filter attack / sustain / release,
 amp attack / decay / sustain / release, HP (input high-pass), Key follow, Min decay, Pulse width, LFO rate, LFO to PW.
 
-**Sequencer.** Tempo (40-300 BPM, used when CLOCK is not patched), Swing, Gate length (55 % at noon, like the 303),
+**Sequencer.** Tempo (40-300 BPM, used when CLOCK is not patched), Swing, Gate length (55 % at noon),
 Pattern (32 slots, I-A1 to II-B8), Length (steps in the playing pattern), Run, Reset.
 
 **Inputs.**
 - SEQ IN: CLOCK (one pulse per 16th; replaces the Tempo knob), RESET, PAT (0-10 V picks a slot, added to the knob).
 - PLAY IN: V/OCT, GATE, ACC. Play the voice from another sequencer or a keyboard. A pitch change while the gate is high
-  slides, as on the 303. ACC high at the start of a note accents it. The voice is mono and shared with the built-in
+  slides (portamento). ACC high at the start of a note accents it. The voice is mono and shared with the built-in
   sequencer: play one or the other (an empty pattern or Run off leaves the voice to the PLAY inputs).
 - CV IN: CUT (1 V/oct), RES, ENV, DEC, ACC (10 V moves the knob through its whole range).
 
