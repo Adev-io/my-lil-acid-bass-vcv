@@ -58,7 +58,7 @@ def mascot(cx, cy, r):
     ])
 
 
-def panel(W, title_x, mascot_x, layout, extras, pad_r, band=8.6, title_size=4.3, title_y=6.3, below=True):
+def panel(W, title_x, mascot_x, layout, extras, pad_r, band=8.6, title_size=4.3, title_y=6.3, below=True, title='MY LIL ACID BASS'):
     """The common frame: ink panel, lime title band, mascot, brand; then the extras and the labelled components.
     Labels sit below the components (or above, below=False), one baseline per row set by the row's biggest part."""
     out = [
@@ -66,7 +66,7 @@ def panel(W, title_x, mascot_x, layout, extras, pad_r, band=8.6, title_size=4.3,
         '<svg xmlns="http://www.w3.org/2000/svg" width="%gmm" height="%gmm" viewBox="0 0 %g %g">' % (W, H, W, H),
         '<rect width="%g" height="%g" fill="%s"/>' % (W, H, INK),
         '<rect width="%g" height="%g" fill="%s"/>' % (W, band, LIME),
-        text('MY LIL ACID BASS', title_x, title_y, title_size, INK, stroke=title_size * 0.09),
+        text(title, title_x, title_y, title_size, INK, stroke=title_size * 0.09),
         mascot(mascot_x, band / 2, band * 0.36),
     ]
     out += extras
@@ -158,7 +158,7 @@ def header():
 if __name__ == '__main__':
     files = {
         os.path.join('res', 'AcidBass.svg'): panel(BW, 101.6, 186, BASS, BASS_EXTRAS, pad_r=5.6),
-        os.path.join('res', 'AcidVoice.svg'): panel(VW, 31, 65.5, VOICE, VOICE_EXTRAS, pad_r=7, band=15.5, title_size=4.4, title_y=10.6, below=False),
+        os.path.join('res', 'AcidVoice.svg'): panel(VW, 31, 65.5, VOICE, VOICE_EXTRAS, pad_r=7, band=15.5, title_size=4.4, title_y=10.6, below=False, title='MY LIL ACID VOICE'),
         os.path.join('src', 'layout.hpp'): header(),
     }
     for rel, body in files.items():
