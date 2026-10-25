@@ -2,6 +2,7 @@
 // V/Oct, gate, accent and slide in; cutoff and resonance CV; audio out. Same voice and knob maps as Acid Bass.
 // Author: Ari Klopfer / A_Development · MIT
 #include "AcidVoice.h"
+#include "TalkingFace.hpp"
 #include "layout.hpp"
 #include "plugin.hpp"
 #include <cmath>
@@ -17,6 +18,7 @@ struct AcidVoiceModule : Module
     AcidParams ap;   // the Tweaks and envelope extras stay at the web defaults; Acid Bass has the knobs for them
     dsp::SchmittTrigger gateTrig;
     dsp::ClockDivider paramDiv;
+    FaceTap face;
     float preparedSr = 0.f;
     bool extGate = false, sliding = false;
     int extNote = 60;
@@ -81,6 +83,7 @@ struct AcidVoiceModule : Module
 
         if (event) voice.setParams (ap);   // accent and the decay floor change with the note
         outputs[AUDIO_OUTPUT].setVoltage (5.f * std::tanh (1.6f * voice.process() * ap.volume));
+        face.push (outputs[AUDIO_OUTPUT].getVoltage() / 5.f, args.sampleRate);
 
         lights[GATE_LIGHT].setBrightnessSmooth (g ? 1.f : 0.f, args.sampleTime);
         lights[ACCENT_LIGHT].setBrightnessSmooth (voice.accentedNow() ? 1.f : 0.f, args.sampleTime);
@@ -104,6 +107,9 @@ struct AcidVoiceWidget : ModuleWidget
         addChild (createWidget<ScrewBlack> (Vec (box.size.x - 2 * RACK_GRID_WIDTH, 0)));
         addChild (createWidget<ScrewBlack> (Vec (RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
         addChild (createWidget<ScrewBlack> (Vec (box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+
+        TalkingFace* f = createWidget<TalkingFace> (mm2px (Vec (L::FACE[0] - L::FACE[2], L::FACE[1] - L::FACE[2])));
+        f->box.size = mm2px (Vec (2 * L::FACE[2], 2 * L::FACE[2])); if (module) f->tap = &module->face; addChild (f);
 
         addChild (glowRing (at (L::CUTOFF_PARAM), module, AcidVoiceModule::ENV_LIGHT, 8.8f));
         addParam (createParamCentered<Rogan3PSRed> (at (L::CUTOFF_PARAM), module, AcidVoiceModule::CUTOFF_PARAM));

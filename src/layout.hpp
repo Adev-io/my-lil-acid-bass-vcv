@@ -67,5 +67,6 @@ constexpr float SLIDE_LIGHT[2] = {67.10f, 95.50f};
 constexpr float CUTOFF_CV_INPUT[2] = {10.50f, 112.00f};
 constexpr float RES_CV_INPUT[2] = {27.20f, 112.00f};
 constexpr float AUDIO_OUTPUT[2] = {57.60f, 112.00f};
+constexpr float FACE[3] = {65.50f, 7.75f, 5.580f};   // mascot centre x, y, radius (TalkingFace)
 }
 }
