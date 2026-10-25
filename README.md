@@ -34,7 +34,7 @@ Pattern (32 slots, I-A1 to II-B8), Length (steps in the playing pattern), Run, R
 - CV IN: CUT (1 V/oct), RES, ENV, DEC, ACC (10 V moves the knob through its whole range).
 
 **Outputs.** SEQ OUT V/OCT, GATE, ACC (drive any other voice with the acid line; the gate stays high through slides and
-ties), and AUDIO (±5 V).
+ties), ENV OUT FILT and AMP (the filter and amp envelopes, 0-10 V, accent included), and AUDIO (±5 V).
 
 **Right-click menu.** Copy the pattern as step notation or as JSON, paste either one back (also the web app's exported
 `.txt` files), clear the pattern, and **Load demo set**: the web app's six starter lines in I-A1 to I-A6, with their sound.
