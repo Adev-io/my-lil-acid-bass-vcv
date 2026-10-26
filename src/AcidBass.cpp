@@ -59,7 +59,7 @@ struct AcidBass : Module
         PARAMS_LEN };
     enum InputId { CLOCK_INPUT, RESET_INPUT, PATTERN_INPUT, VOCT_INPUT, GATE_INPUT, ACCENT_INPUT,
         CUTOFF_CV_INPUT, RES_CV_INPUT, ENVMOD_CV_INPUT, DECAY_CV_INPUT, ACCENT_CV_INPUT, INPUTS_LEN };
-    enum OutputId { SEQ_VOCT_OUTPUT, SEQ_GATE_OUTPUT, SEQ_ACCENT_OUTPUT, AUDIO_OUTPUT, OUTPUTS_LEN };
+    enum OutputId { SEQ_VOCT_OUTPUT, SEQ_GATE_OUTPUT, SEQ_ACCENT_OUTPUT, AUDIO_OUTPUT, FENV_OUTPUT, AENV_OUTPUT, OUTPUTS_LEN };
     enum LightId { RUN_LIGHT, SQUARE_LIGHT, ENV_LIGHT, LIGHTS_LEN };
 
     // Patterns: the UI thread is the only writer (under bankMutex, then bankRev++). The audio thread copies the playing slot
@@ -133,6 +133,8 @@ struct AcidBass : Module
         configOutput (SEQ_GATE_OUTPUT, "Sequencer gate (stays high through slides and ties)");
         configOutput (SEQ_ACCENT_OUTPUT, "Sequencer accent");
         configOutput (AUDIO_OUTPUT, "Audio");
+        configOutput (FENV_OUTPUT, "Filter envelope (0-10 V)");
+        configOutput (AENV_OUTPUT, "Amp envelope (0-10 V)");
         paramDiv.setDivision (32);
         evs.reserve (16);
     }
@@ -240,6 +242,8 @@ struct AcidBass : Module
         outputs[SEQ_VOCT_OUTPUT].setVoltage ((seqNote - 60) / 12.f);
         outputs[SEQ_GATE_OUTPUT].setVoltage (seqGate ? 10.f : 0.f);
         outputs[SEQ_ACCENT_OUTPUT].setVoltage (seqGate && seqAcc ? 10.f : 0.f);
+        outputs[FENV_OUTPUT].setVoltage (10.f * voice.filterEnv());
+        outputs[AENV_OUTPUT].setVoltage (10.f * voice.ampEnvelope());
         lights[RUN_LIGHT].setBrightness (run ? 1.f : 0.f);
         lights[SQUARE_LIGHT].setBrightness (ap.square ? 1.f : 0.f);
         lights[ENV_LIGHT].setBrightnessSmooth (voice.filterEnv(), args.sampleTime);
@@ -467,6 +471,8 @@ struct AcidBassWidget : ModuleWidget
         for (int i = 0; i < 11; ++i) addInput (createInputCentered<PJ301MPort> (at (ins[i]), module, AcidBass::CLOCK_INPUT + i));
         static const float* const outs[4] = { L::SEQ_VOCT_OUTPUT, L::SEQ_GATE_OUTPUT, L::SEQ_ACCENT_OUTPUT, L::AUDIO_OUTPUT };
         for (int i = 0; i < 4; ++i) addOutput (createOutputCentered<PJ301MPort> (at (outs[i]), module, AcidBass::SEQ_VOCT_OUTPUT + i));
+        addOutput (createOutputCentered<PJ301MPort> (at (L::FENV_OUTPUT), module, AcidBass::FENV_OUTPUT));
+        addOutput (createOutputCentered<PJ301MPort> (at (L::AENV_OUTPUT), module, AcidBass::AENV_OUTPUT));
     }
 
     // LENGTH knob <-> the playing pattern's length, on the UI thread (the only pattern writer). A turn of the knob sets

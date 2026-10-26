@@ -105,19 +105,20 @@ BASS = [
 ] + [(i + '_PARAM', 'trim', x, R2, l) for i, x, l in zip(TRIM_IDS, TRIM_X, TRIM_LABELS)] + [
     ('PATTERN_PARAM', 'tiny', 153, R2, 'PATTERN'), ('LENGTH_PARAM', 'tiny', 168, R2, 'LENGTH'),
     ('RUN_PARAM', 'latch', 181, R2, 'RUN'), ('RESET_PARAM', 'button', 193, R2, 'RESET'),
-    ('CLOCK_INPUT', 'seq', 11, R3, 'CLOCK'), ('RESET_INPUT', 'seq', 22, R3, 'RESET'), ('PATTERN_INPUT', 'seq', 33, R3, 'PAT'),
-    ('VOCT_INPUT', 'play', 48, R3, 'V/OCT'), ('GATE_INPUT', 'play', 59, R3, 'GATE'), ('ACCENT_INPUT', 'play', 70, R3, 'ACC'),
-    ('CUTOFF_CV_INPUT', 'cv', 85, R3, 'CUT'), ('RES_CV_INPUT', 'cv', 96, R3, 'RES'), ('ENVMOD_CV_INPUT', 'cv', 107, R3, 'ENV'),
-    ('DECAY_CV_INPUT', 'cv', 118, R3, 'DEC'), ('ACCENT_CV_INPUT', 'cv', 129, R3, 'ACC'),
-    ('SEQ_VOCT_OUTPUT', 'seq', 148, R3, 'V/OCT'), ('SEQ_GATE_OUTPUT', 'seq', 159, R3, 'GATE'), ('SEQ_ACCENT_OUTPUT', 'seq', 170, R3, 'ACC'),
-    ('AUDIO_OUTPUT', 'out', 189, R3, 'AUDIO'),
+    ('CLOCK_INPUT', 'seq', 10, R3, 'CLOCK'), ('RESET_INPUT', 'seq', 21, R3, 'RESET'), ('PATTERN_INPUT', 'seq', 32, R3, 'PAT'),
+    ('VOCT_INPUT', 'play', 45, R3, 'V/OCT'), ('GATE_INPUT', 'play', 56, R3, 'GATE'), ('ACCENT_INPUT', 'play', 67, R3, 'ACC'),
+    ('CUTOFF_CV_INPUT', 'cv', 80, R3, 'CUT'), ('RES_CV_INPUT', 'cv', 91, R3, 'RES'), ('ENVMOD_CV_INPUT', 'cv', 102, R3, 'ENV'),
+    ('DECAY_CV_INPUT', 'cv', 113, R3, 'DEC'), ('ACCENT_CV_INPUT', 'cv', 124, R3, 'ACC'),
+    ('SEQ_VOCT_OUTPUT', 'seq', 136, R3, 'V/OCT'), ('SEQ_GATE_OUTPUT', 'seq', 147, R3, 'GATE'), ('SEQ_ACCENT_OUTPUT', 'seq', 158, R3, 'ACC'),
+    ('FENV_OUTPUT', 'cv', 171, R3, 'FILT'), ('AENV_OUTPUT', 'cv', 182, R3, 'AMP'),
+    ('AUDIO_OUTPUT', 'out', 193, R3, 'AUDIO'),
 ]
 BASS_EXTRAS = [
     '<rect x="4.5" y="9.5" width="194.2" height="51" rx="1.5" fill="none" stroke="%s" stroke-width="0.5"/>' % LIME,   # frames the step grid
     '<rect x="3.5" y="95.5" width="196.2" height="21" rx="2" fill="%s"/>' % INK2,                                     # jack zone
-    text('SEQ IN', 22, 98.4, 2.6, BLUE, stroke=0.2), text('PLAY IN', 59, 98.4, 2.6, LIME, stroke=0.2),
-    text('CV IN', 107, 98.4, 2.6, MAGENTA, stroke=0.2), text('SEQ OUT', 159, 98.4, 2.6, BLUE, stroke=0.2),
-    text('OUT', 189, 98.4, 2.6, LIME, stroke=0.2),
+    text('SEQ IN', 21, 98.4, 2.6, BLUE, stroke=0.2), text('PLAY IN', 56, 98.4, 2.6, LIME, stroke=0.2),
+    text('CV IN', 102, 98.4, 2.6, MAGENTA, stroke=0.2), text('SEQ OUT', 147, 98.4, 2.6, BLUE, stroke=0.2), text('ENV OUT', 176.5, 98.4, 2.6, MAGENTA, stroke=0.2),
+    text('OUT', 193, 98.4, 2.6, LIME, stroke=0.2),
 ]
 
 # ---------------------------------------------------------------------------------------------------------------- Acid Voice, 14 HP

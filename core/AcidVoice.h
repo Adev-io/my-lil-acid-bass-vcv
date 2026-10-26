@@ -56,6 +56,7 @@ public:
     bool active() const { return gate || ampEnv > 1.0e-4f; }
     bool accentedNow() const { return gate && accented; }
     float filterEnv() const { return filtEnv; }
+    float ampEnvelope() const { return ampEnv; }
 
     // A note that arrives while another is held glides to the new pitch without restarting the envelope (the 303 slide).
     // forceLegato does the same after a rest: glide in from the last pitch, keep the envelopes running.
