@@ -46,28 +46,37 @@ def text(s, x, y, size, fill, anchor='middle', stroke=0.0):
     return '<path fill="%s"%s d="%s"/>' % (fill, bold, ' '.join(d))
 
 
+# The title band, the same on every My lil module: title left of the face, the face right of Rack's screws.
+BAND, TITLE_X, TITLE_Y, TITLE_SIZE = 8.6, 11.2, 6.3, 4.3
+MASCOT_R = BAND * 0.36
+
+
+def mascot_x(W):
+    return W - 14.46
+
+
 def mascot(cx, cy, r):
-    """A little acid face: magenta disc, dot eyes, a wavy mouth."""
-    e, m = r * 0.37, r * 0.29
+    """The My lil face: magenta disc, dot eyes, a flat mouth (src/TalkingFace.hpp paints the live mouth over it)."""
+    e = r * 0.37
     return ''.join([
         '<circle cx="%g" cy="%g" r="%g" fill="%s"/>' % (cx, cy, r, MAGENTA),
         '<circle cx="%g" cy="%g" r="%g" fill="%s"/>' % (cx - e, cy - r * 0.32, r * 0.145, INK),
         '<circle cx="%g" cy="%g" r="%g" fill="%s"/>' % (cx + e, cy - r * 0.32, r * 0.145, INK),
-        '<path d="M %g %g q %g %g %g 0 q %g %g %g 0" fill="none" stroke="%s" stroke-width="%g" stroke-linecap="round"/>'
-        % (cx - 2 * m, cy + r * 0.29, m, r * 0.45, 2 * m, m, -r * 0.45, 2 * m, INK, r * 0.16),
+        '<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="%s" stroke-width="%g" stroke-linecap="round"/>'
+        % (cx - r * 0.58, cy + r * 0.45, cx + r * 0.58, cy + r * 0.45, INK, r * 0.16),
     ])
 
 
-def panel(W, title_x, mascot_x, layout, extras, pad_r, band=8.6, title_size=4.3, title_y=6.3, below=True, title='MY LIL ACID BASS'):
+def panel(W, layout, extras, pad_r, title, below=True):
     """The common frame: ink panel, lime title band, mascot, brand; then the extras and the labelled components.
     Labels sit below the components (or above, below=False), one baseline per row set by the row's biggest part."""
     out = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<svg xmlns="http://www.w3.org/2000/svg" width="%gmm" height="%gmm" viewBox="0 0 %g %g">' % (W, H, W, H),
         '<rect width="%g" height="%g" fill="%s"/>' % (W, H, INK),
-        '<rect width="%g" height="%g" fill="%s"/>' % (W, band, LIME),
-        text(title, title_x, title_y, title_size, INK, stroke=title_size * 0.09),
-        mascot(mascot_x, band / 2, band * 0.36),
+        '<rect width="%g" height="%g" fill="%s"/>' % (W, BAND, LIME),
+        text(title, TITLE_X, TITLE_Y, TITLE_SIZE, INK, 'start', 0.39),
+        mascot(mascot_x(W), BAND / 2, MASCOT_R),
     ]
     out += extras
     rowmax = {}
@@ -150,8 +159,8 @@ def header():
     for name, table in (('bass', BASS), ('voice', VOICE)):
         lines.append('namespace %s {' % name)
         lines += ['constexpr float %s[2] = {%.2ff, %.2ff};' % (i, x, y) for i, _, x, y, _ in table]
-        mx, band = {'bass': (186, 8.6), 'voice': (65.5, 15.5)}[name]
-        lines.append('constexpr float FACE[3] = {%.2ff, %.2ff, %.3ff};   // mascot centre x, y, radius (TalkingFace)' % (mx, band / 2, band * 0.36))
+        lines.append('constexpr float FACE[3] = {%.2ff, %.2ff, %.3ff};   // mascot centre x, y, radius (TalkingFace)'
+                     % (mascot_x({'bass': BW, 'voice': VW}[name]), BAND / 2, MASCOT_R))
         lines.append('}')
     lines += ['}', '']
     return '\n'.join(lines)
@@ -159,8 +168,8 @@ def header():
 
 if __name__ == '__main__':
     files = {
-        os.path.join('res', 'AcidBass.svg'): panel(BW, 101.6, 186, BASS, BASS_EXTRAS, pad_r=5.6),
-        os.path.join('res', 'AcidVoice.svg'): panel(VW, 31, 65.5, VOICE, VOICE_EXTRAS, pad_r=7, band=15.5, title_size=4.4, title_y=10.6, below=False, title='MY LIL ACID VOICE'),
+        os.path.join('res', 'AcidBass.svg'): panel(BW, BASS, BASS_EXTRAS, 5.6, 'MY LIL ACID BASS'),
+        os.path.join('res', 'AcidVoice.svg'): panel(VW, VOICE, VOICE_EXTRAS, 7, 'MY LIL ACID VOICE', below=False),
         os.path.join('src', 'layout.hpp'): header(),
     }
     for rel, body in files.items():

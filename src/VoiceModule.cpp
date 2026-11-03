@@ -26,7 +26,7 @@ struct AcidVoiceModule : Module
     AcidVoiceModule()
     {
         config (PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
-        configParam (TUNE_PARAM, -100.f, 100.f, 0.f, "Tuning", " cents");
+        configParam (TUNE_PARAM, -1200.f, 1200.f, 0.f, "Tuning", " cents");
         configParam (CUTOFF_PARAM, 0.f, 1.f, cutoffKnob (460.f), "Cutoff", " Hz", cutHi / cutLo, cutLo);
         configParam (RES_PARAM, 0.f, 1.f, 0.5f, "Resonance", "%", 0.f, 100.f);
         configParam (ENVMOD_PARAM, 0.f, 1.f, 0.6f, "Env mod", "%", 0.f, 100.f);

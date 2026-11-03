@@ -47,7 +47,7 @@ constexpr float SEQ_ACCENT_OUTPUT[2] = {158.00f, 105.00f};
 constexpr float FENV_OUTPUT[2] = {171.00f, 105.00f};
 constexpr float AENV_OUTPUT[2] = {182.00f, 105.00f};
 constexpr float AUDIO_OUTPUT[2] = {193.00f, 105.00f};
-constexpr float FACE[3] = {186.00f, 4.30f, 3.096f};   // mascot centre x, y, radius (TalkingFace)
+constexpr float FACE[3] = {188.74f, 4.30f, 3.096f};   // mascot centre x, y, radius (TalkingFace)
 }
 namespace voice {
 constexpr float RES_PARAM[2] = {13.50f, 30.00f};
@@ -69,6 +69,6 @@ constexpr float SLIDE_LIGHT[2] = {67.10f, 95.50f};
 constexpr float CUTOFF_CV_INPUT[2] = {10.50f, 112.00f};
 constexpr float RES_CV_INPUT[2] = {27.20f, 112.00f};
 constexpr float AUDIO_OUTPUT[2] = {57.60f, 112.00f};
-constexpr float FACE[3] = {65.50f, 7.75f, 5.580f};   // mascot centre x, y, radius (TalkingFace)
+constexpr float FACE[3] = {56.66f, 4.30f, 3.096f};   // mascot centre x, y, radius (TalkingFace)
 }
 }

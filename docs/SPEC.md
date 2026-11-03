@@ -50,5 +50,5 @@ when the UI changed a pattern.
 
 ## Build and verify
 
-MSYS2 mingw64 + Rack SDK at `C:/dev/Rack-SDK` (the Melody Monster rig). `make test` runs the core checks;
+MSYS2 mingw64 + Rack SDK at `C:/dev/Rack-SDK` (the My lil build rig). `make test` runs the core checks;
 `make install` puts the plugin in Rack. Live smoke over the Rack MCP bridge if it is up.

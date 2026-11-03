@@ -13,7 +13,7 @@ sequencer (CLOCK, RESET, PAT and the SEQ outputs), and the audio output sits on 
 the halo behind it breathes with the filter envelope, so the sweep you hear is the sweep you see. SQUARE and RUN are
 lit buttons. Hover anything for its value in Hz, seconds or percent.
 
-## Acid Bass (40 HP)
+## My lil Acid Bass (40 HP)
 
 **Step grid.** 32 steps. Click a pitch cell to place a note (click it again to remove it). Lanes under the keys:
 **TIE** holds the previous note, **OCT** cycles up / down / normal, **ACC** accent, **SLD** slide into the next note.
@@ -46,7 +46,7 @@ Patterns are saved with the patch. Edit → Undo / Redo (Ctrl+Z / Ctrl+Shift+Z) 
 Load demo set as well as the knobs. **Initialize** (right-click → Initialize, Ctrl+I) resets the knobs **and clears all
 32 patterns**; Undo brings them back.
 
-## Acid Voice (14 HP)
+## My lil Acid Voice (14 HP)
 
 The same voice on its own, for sequencing from any other module. Cutoff, Res, Env Mod, Decay, Accent, Vol, Tune,
 Square; the Tweaks and envelope extras stay at the web app's defaults.

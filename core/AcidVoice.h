@@ -19,7 +19,7 @@ struct AcidParams
     float decaySec = 0.5f;     // filter decay
     float accent = 0.6f;       // 0..1, how hard an accented note hits
     float volume = 0.7f;       // 0..1 (applied by the caller, after the voice)
-    float tuneCents = 0.0f;    // +-100
+    float tuneCents = 0.0f;    // +-1200
     bool square = false;       // false = saw
     float hpHz = 20.0f;        // input high-pass (20 = off)
     float keyFollow = 0.0f;    // 0..1, how far the cutoff follows the note (C3 neutral)

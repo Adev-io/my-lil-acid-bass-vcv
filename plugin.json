@@ -14,7 +14,7 @@
   "changelogUrl": "https://github.com/Adev-io/my-lil-acid-bass-vcv/releases",
   "description": "Classic acid bass: the voice and the 32-step acid sequencer from the My lil acid bassline web synth and VST, as Rack modules",
   "modules": [
-    { "slug": "AcidBass", "name": "Acid Bass", "description": "Acid bass voice (saw/square, resonant 24 dB filter, accent, slide) with a 32-step sequencer and 32 pattern slots", "tags": ["Synth voice", "Sequencer", "Oscillator", "Filter", "Envelope generator"] },
-    { "slug": "AcidVoice", "name": "Acid Voice", "description": "The acid bass voice on its own: V/Oct, gate, accent and slide in, cutoff and resonance CV, audio out", "tags": ["Synth voice"] }
+    { "slug": "AcidBass", "name": "My lil Acid Bass", "description": "Acid bass voice (saw/square, resonant 24 dB filter, accent, slide) with a 32-step sequencer and 32 pattern slots", "tags": ["Synth voice", "Sequencer", "Oscillator", "Filter", "Envelope generator"] },
+    { "slug": "AcidVoice", "name": "My lil Acid Voice", "description": "The acid bass voice on its own: V/Oct, gate, accent and slide in, cutoff and resonance CV, audio out", "tags": ["Synth voice"] }
   ]
 }
