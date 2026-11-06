@@ -360,6 +360,32 @@ int main()
         check (first == midiOf (p3.steps[20 % 3]), "engine: a jump drops the rebase (grid position again)", first);
         Engine idle; check (idle.nextIndex (16) == 0, "engine: stopped = next index 0");
     }
+    {   // mutate: only the pattern's own pitches, at most `amount` steps, replayable from a seed, never empty
+        using acidseq::Rng;   // acidmaps has its own Rng (the reverb's mulberry32); main() sees both namespaces
+        const Pattern base = pat ({ note (4, 0, true), rest(), note (9), note (11, 0, false, true), rest(), note (4), tie(), note (2, -1) });
+        auto pitchSet = [] (const Pattern& p) -> std::vector<int> { std::vector<int> s; for (int i = 0; i < p.len; ++i) if (p.steps[i].gate == Gate::Note) s.push_back (midiOf (p.steps[i])); std::sort (s.begin(), s.end()); s.erase (std::unique (s.begin(), s.end()), s.end()); return s; };
+        auto diff = [] (const Pattern& a, const Pattern& b) -> int { int n = 0; for (int i = 0; i < maxSteps; ++i) n += toJson (pat ({ a.steps[i] })) != toJson (pat ({ b.steps[i] })); return n; };
+        const std::vector<int> own = pitchSet (base);
+        bool inKey = true, few = true; int changedTotal = 0;
+        for (int seed = 1; seed <= 200; ++seed)
+        {
+            Pattern p = base; Rng r ((uint32_t) seed);
+            const int n = mutate (p, 3, r);
+            few = few && n <= 3 && diff (base, p) == n;
+            for (int m : pitchSet (p)) inKey = inKey && std::find (own.begin(), own.end(), m) != own.end();
+            changedTotal += n;
+        }
+        check (few, "mutate: changes at most AMOUNT steps, and says how many");
+        check (inKey, "mutate: only pitches the pattern already plays");
+        check (changedTotal > 400, "mutate: does change things", changedTotal);
+        Pattern a = base, b = base; Rng ra (77), rb (77); mutate (a, 2, ra); mutate (b, 2, rb);
+        check (toJson (a) == toJson (b), "mutate: same seed, same result");
+        Pattern one = pat ({ note (0), rest(), rest(), rest() }); Rng r1 (5); bool alive = true;
+        for (int i = 0; i < 300; ++i) { mutate (one, 3, r1); int notes = 0; for (int k = 0; k < one.len; ++k) notes += one.steps[k].gate == Gate::Note; alive = alive && notes > 0; }
+        check (alive, "mutate: never mutes the last note");
+        Pattern empty = pat ({ rest(), rest() }); Rng r0 (9);
+        check (mutate (empty, 3, r0) == 0, "mutate: an empty pattern stays empty");
+    }
 
     std::printf ("\n%s: %d failure(s)\n", failures ? "FAILED" : "PASSED", failures);
     return failures ? 1 : 0;

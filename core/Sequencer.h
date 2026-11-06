@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -49,6 +50,58 @@ inline Event stepEvent (const Pattern& p, int i)
 inline std::string slotName (int i)
 {
     return std::string (i < 16 ? "I" : "II") + "-" + ((i % 16) < 8 ? "A" : "B") + std::to_string ((i % 8) + 1);
+}
+
+// A small seeded generator for MUTATE (xorshift32): the same seed replays the same drift.
+struct Rng
+{
+    uint32_t s;
+    explicit Rng (uint32_t seed = 0x9e3779b9u) : s (seed ? seed : 1u) {}
+    uint32_t next() { s ^= s << 13; s ^= s >> 17; s ^= s << 5; return s; }
+    int below (int n) { return n > 0 ? (int) (next() % (uint32_t) n) : 0; }
+};
+
+// MUTATE: changes up to `amount` different steps of p (inside its length) and returns how many changed. A note step
+// takes another pitch the pattern already plays, flips its accent or slide, or becomes a rest (never the last note);
+// a rest or tie becomes a note on one of the pattern's pitches. Pitches never leave the pattern's own set, so the line
+// stays in its key without the module knowing the key.
+inline int mutate (Pattern& p, int amount, Rng& rng)
+{
+    const int L = std::max (1, std::min (p.len, maxSteps));
+    int pitch[maxSteps][2]; int np = 0, notes = 0;
+    for (int i = 0; i < L; ++i)
+    {
+        const Step& s = p.steps[i];
+        if (s.gate != Gate::Note) continue;
+        ++notes;
+        bool seen = false;
+        for (int k = 0; k < np; ++k) seen = seen || (pitch[k][0] == s.note && pitch[k][1] == s.oct);
+        if (! seen) { pitch[np][0] = s.note; pitch[np][1] = s.oct; ++np; }
+    }
+    if (np == 0) return 0;
+    bool used[maxSteps] = {};
+    int changed = 0;
+    amount = std::min (amount, L);
+    for (int tries = 0; changed < amount && tries < 8 * maxSteps; ++tries)
+    {
+        const int i = rng.below (L);
+        if (used[i]) continue;
+        Step& s = p.steps[i];
+        const Step before = s;
+        if (s.gate == Gate::Note)
+        {
+            const int op = rng.below (notes > 1 ? 4 : 3);   // 3 = to a rest, only while another note is left
+            if (op == 0) { const int k = rng.below (np); s.note = pitch[k][0]; s.oct = pitch[k][1]; }
+            else if (op == 1) s.accent = ! s.accent;
+            else if (op == 2) s.slide = ! s.slide;
+            else { s.gate = Gate::Rest; --notes; }
+        }
+        else { const int k = rng.below (np); s.gate = Gate::Note; s.note = pitch[k][0]; s.oct = pitch[k][1]; s.accent = s.slide = false; ++notes; }
+        if (s.gate != before.gate || s.note != before.note || s.oct != before.oct || s.accent != before.accent || s.slide != before.slide)
+        { used[i] = true; ++changed; }
+        else s = before;   // swapped onto the same pitch: try another step
+    }
+    return changed;
 }
 
 // Step notation, one token per step: C..B note, C' the high C, ^ _ octave up/down, * accent, ~ slide, - rest, = tie.
