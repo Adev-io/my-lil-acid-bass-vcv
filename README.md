@@ -13,7 +13,7 @@ sequencer (CLOCK, RESET, PAT and the SEQ outputs), and the audio output sits on 
 the halo behind it breathes with the filter envelope, so the sweep you hear is the sweep you see. SQUARE and RUN are
 lit buttons. Hover anything for its value in Hz, seconds or percent.
 
-## My lil Acid Bass (40 HP)
+## My lil Acid Bass (48 HP)
 
 **Step grid.** 32 steps. Click a pitch cell to place a note (click it again to remove it). Lanes under the keys:
 **TIE** holds the previous note, **OCT** cycles up / down / normal, **ACC** accent, **SLD** slide into the next note.
@@ -25,6 +25,12 @@ amp attack / decay / sustain / release, HP (input high-pass), Key follow, Min de
 
 **Sequencer.** Tempo (40-300 BPM, used when CLOCK is not patched), Swing, Gate length (55 % at noon),
 Pattern (32 slots, I-A1 to II-B8), Length (steps in the playing pattern), Run, Reset.
+- **TRANSPOSE** (±12 semitones): moves the sequencer's notes and SEQ V/OCT (TUNE only moves the sound).
+- **MUTATE** (button or trigger) changes **AMOUNT** (1-3) steps of the playing pattern: another of its own pitches, accent or
+  slide flipped, or a note to a rest. Presses add up. **UNDO** goes back to the stored pattern; **KEEP** stores the drift
+  (Ctrl+Z undoes a KEEP). Editing a step by hand drops unkept mutations.
+- **FILL** (hold button or gate) plays the pattern as a roll (16ths doubled), an octave up, or every note accented.
+- A new pattern now starts when the playing one ends. Menu: "Switch patterns at once" for the old behaviour.
 
 **Inputs.**
 - SEQ IN: CLOCK (one pulse per 16th; replaces the Tempo knob), RESET, PAT (0-10 V picks a slot, added to the knob).
