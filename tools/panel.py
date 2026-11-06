@@ -100,8 +100,8 @@ def panel(W, layout, extras, pad_r, title, below=True):
     return '\n'.join(out) + '\n'
 
 
-# ---------------------------------------------------------------------------------------------------------------- Acid Bass, 40 HP
-BW = 5.08 * 40
+# ---------------------------------------------------------------------------------------------------------------- Acid Bass, 48 HP
+BW = 5.08 * 48
 R1, R2, R3 = 70, 87, 105
 TRIM_X = (11, 21, 31, 45, 55, 65, 75, 89, 99, 109, 119, 129, 139)
 TRIM_IDS = ('FATK', 'FSUS', 'FREL', 'AATK', 'ADEC', 'ASUS', 'AREL', 'HP', 'KFOL', 'MIND', 'PW', 'LFOR', 'LFOPW')
@@ -121,13 +121,17 @@ BASS = [
     ('SEQ_VOCT_OUTPUT', 'seq', 136, R3, 'V/OCT'), ('SEQ_GATE_OUTPUT', 'seq', 147, R3, 'GATE'), ('SEQ_ACCENT_OUTPUT', 'seq', 158, R3, 'ACC'),
     ('FENV_OUTPUT', 'cv', 171, R3, 'FILT'), ('AENV_OUTPUT', 'cv', 182, R3, 'AMP'),
     ('AUDIO_OUTPUT', 'out', 193, R3, 'AUDIO'),
+    ('TRANSPOSE_PARAM', 'knob', 206, R1, 'TRANSPOSE'), ('FILL_PARAM', 'tiny', 222, R1, 'FILL'), ('FILLBTN_PARAM', 'button', 235, R1, 'HOLD'),
+    ('MUTATE_PARAM', 'button', 205, R2, 'MUTATE'), ('AMOUNT_PARAM', 'tiny', 215.5, R2, 'AMT'),
+    ('UNDO_PARAM', 'button', 226, R2, 'UNDO'), ('KEEP_PARAM', 'button', 236, R2, 'KEEP'),
+    ('MUTATE_INPUT', 'seq', 206, R3, 'MUT'), ('UNDO_INPUT', 'seq', 217, R3, 'UNDO'), ('FILL_INPUT', 'seq', 228, R3, 'FILL'),
 ]
 BASS_EXTRAS = [
     '<rect x="4.5" y="9.5" width="194.2" height="51" rx="1.5" fill="none" stroke="%s" stroke-width="0.5"/>' % LIME,   # frames the step grid
-    '<rect x="3.5" y="95.5" width="196.2" height="21" rx="2" fill="%s"/>' % INK2,                                     # jack zone
+    '<rect x="3.5" y="95.5" width="%g" height="21" rx="2" fill="%s"/>' % (BW - 7, INK2),                              # jack zone
     text('SEQ IN', 21, 98.4, 2.6, BLUE, stroke=0.2), text('PLAY IN', 56, 98.4, 2.6, LIME, stroke=0.2),
     text('CV IN', 102, 98.4, 2.6, MAGENTA, stroke=0.2), text('SEQ OUT', 147, 98.4, 2.6, BLUE, stroke=0.2), text('ENV OUT', 176.5, 98.4, 2.6, MAGENTA, stroke=0.2),
-    text('OUT', 193, 98.4, 2.6, LIME, stroke=0.2),
+    text('OUT', 193, 98.4, 2.6, LIME, stroke=0.2), text('MOVES IN', 217, 98.4, 2.6, BLUE, stroke=0.2),
 ]
 
 # ---------------------------------------------------------------------------------------------------------------- Acid Voice, 14 HP
