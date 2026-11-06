@@ -5,6 +5,7 @@
 #include "FaceTap.h"
 #include "Maps.h"
 #include "Sequencer.h"
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <vector>
@@ -344,6 +345,20 @@ int main()
         want += "]}";
         check (toJson (p) == want, "json: same text as the web app and the plugin");
         check (slotName (0) == "I-A1" && slotName (9) == "I-B2" && slotName (31) == "II-B8", "slot names");
+    }
+    {   // pattern switch on the pattern end: rebase() makes the next step the new pattern's step 1
+        Engine e; std::vector<Out> o; Settings st;
+        const Pattern p4 = pat ({ note (0), note (2), note (4), note (5) }), p3 = pat ({ note (7), note (9), note (11) });
+        e.process (p4, st, true, 0.0, 0.3, o);                                  // steps 0 and 1 of p4
+        check (e.nextIndex (4) == 2, "engine: next index after two steps", e.nextIndex (4));
+        e.rebase();
+        e.process (p3, st, true, 0.3, 0.55, o);                                 // absolute step 2 = p3's step 1
+        int first = -1; for (const Out& x : o) if (x.on) { first = x.note; break; }
+        check (first == midiOf (p3.steps[0]), "engine: rebased pattern starts on its step 1", first);
+        e.process (p3, st, true, 5.0, 5.1, o);                                  // a jump re-syncs to the song grid
+        first = -1; for (const Out& x : o) if (x.on) { first = x.note; break; }
+        check (first == midiOf (p3.steps[20 % 3]), "engine: a jump drops the rebase (grid position again)", first);
+        Engine idle; check (idle.nextIndex (16) == 0, "engine: stopped = next index 0");
     }
 
     std::printf ("\n%s: %d failure(s)\n", failures ? "FAILED" : "PASSED", failures);

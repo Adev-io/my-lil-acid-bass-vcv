@@ -149,6 +149,16 @@ class Engine
 public:
     int currentStep() const { return stepNow; }   // -1 when silent
 
+    // The step index the next 16th will play (0 while stopped). The module swaps in a waiting pattern while this is 0,
+    // then calls rebase() so the new pattern starts on its own step 1 whatever its length.
+    int nextIndex (int len) const
+    {
+        if (! haveEnd) return 0;
+        const long long L = std::max (1, len);
+        return (int) ((((nextK - origin) % L) + L) % L);
+    }
+    void rebase() { origin = nextK; }
+
     // Moves the song position from ppq0 to ppq1 (quarter notes; one step is a 16th). Events come out in time order.
     // Ranges should be back to back; a gap or overlap bigger than 0.05 counts as a jump (let go and re-sync).
     void process (const Pattern& pat, const Settings& s, bool playing, double ppq0, double ppq1, std::vector<Out>& out)
@@ -158,6 +168,7 @@ public:
         if (! haveEnd || std::abs (ppq0 - lastEnd) > 0.05)
         {
             release (out);
+            origin = 0;
             nextK = (long long) std::ceil (ppq0 * 4.0 - 1.0e-6);
         }
         haveEnd = true; lastEnd = ppq1;
@@ -167,7 +178,7 @@ public:
             const double tStep = timeOf (nextK), tOff = pendingOff ? offAt : 1.0e300;
             if (tOff < ppq1 && tOff <= tStep) { release (out); continue; }
             if (tStep >= ppq1) break;
-            const int len = std::max (1, pat.len), idx = (int) (((nextK % len) + len) % len);
+            const int len = std::max (1, pat.len), idx = (int) ((((nextK - origin) % len) + len) % len);
             const Event e = stepEvent (pat, idx);
             if (! e.off)
             {
@@ -189,6 +200,6 @@ private:
         sounding = false; pendingOff = false;
     }
 
-    long long nextK = 0; double lastEnd = 0.0, offAt = 0.0; bool haveEnd = false, pendingOff = false, sounding = false; int cur = 0, stepNow = -1;
+    long long nextK = 0, origin = 0; double lastEnd = 0.0, offAt = 0.0; bool haveEnd = false, pendingOff = false, sounding = false; int cur = 0, stepNow = -1;
 };
 }
