@@ -360,8 +360,42 @@ int main()
         check (first == midiOf (p3.steps[20 % 3]), "engine: a jump drops the rebase (grid position again)", first);
         Engine idle; check (idle.nextIndex (16) == 0, "engine: stopped = next index 0");
     }
+    {   // a rebased pattern wraps into its second cycle on its own length
+        Engine e; std::vector<Out> o; Settings st;
+        const Pattern p4 = pat ({ note (0), note (2), note (4), note (5) }), p3 = pat ({ note (7), note (9), note (11) });
+        e.process (p4, st, true, 0.0, 0.3, o);                                  // absolute steps 0, 1
+        e.rebase();
+        e.process (p3, st, true, 0.3, 1.3, o);                                  // absolute steps 2..5 = p3 steps 0,1,2,0
+        std::vector<int> on; for (const Out& x : o) if (x.on) on.push_back (x.note);
+        const std::vector<int> want = { midiOf (p3.steps[0]), midiOf (p3.steps[1]), midiOf (p3.steps[2]), midiOf (p3.steps[0]) };
+        check (on == want, "engine: rebased pattern wraps into its second cycle", (double) on.size());
+        check (e.nextIndex (3) == 1 && e.nextIndex (4) == 0 && e.nextIndex (16) == 4, "engine: next index follows a len change", e.nextIndex (16));
+        Engine g; g.process (p4, st, true, 0.0, 1.3, o);                       // absolute steps 0..5, no rebase
+        const int predicted = g.nextIndex (3);
+        check (g.nextIndex (4) == 2 && predicted == 0, "engine: next index for another len, unrebased", predicted);
+        g.process (p3, st, true, 1.3, 1.55, o);
+        int first = -1; for (const Out& x : o) if (x.on) { first = x.note; break; }
+        check (first == midiOf (p3.steps[predicted]), "engine: the shorter pattern plays the index nextIndex gave", first);
+    }
+    {   // a held note whose next step changes before it plays must still be let go
+        Settings st; std::vector<Out> o; int ons = 0, offs = 0;
+        auto count = [&] () { for (const Out& x : o) (x.on ? ons : offs) += 1; };
+        Engine e;
+        const Pattern wrapSlide = pat ({ note (0), rest(), rest(), note (7, 0, false, true) }), silent = pat ({ rest(), rest(), rest(), rest() });
+        e.process (wrapSlide, st, true, 0.0, 1.0, o); count();                  // the last step slides into the wrap: held
+        check (e.nextIndex (4) == 0, "engine: at the pattern end", e.nextIndex (4));
+        e.rebase();
+        e.process (silent, st, true, 1.0, 2.0, o); count();                     // switched to rests: the held note must end
+        check (ons == offs && ons == 2, "engine: switch after a held slide releases it (ons == offs)", offs);
+        Engine h; Pattern edit = pat ({ note (0, 0, false, true), note (5), rest(), rest() });
+        ons = offs = 0;
+        h.process (edit, st, true, 0.0, 0.2, o); count();                       // step 0 slides into step 1: held
+        edit.steps[1] = rest();                                                 // edited (or mutated) before it plays
+        h.process (edit, st, true, 0.2, 0.5, o);
+        bool released = false; for (const Out& x : o) released = released || (! x.on && x.note == midiOf (edit.steps[0]));
+        check (released && ons == 1, "engine: a hold whose next step became a rest is released", ons);
+    }
     {   // mutate: only the pattern's own pitches, at most `amount` steps, replayable from a seed, never empty
-        using acidseq::Rng;   // acidmaps has its own Rng (the reverb's mulberry32); main() sees both namespaces
         const Pattern base = pat ({ note (4, 0, true), rest(), note (9), note (11, 0, false, true), rest(), note (4), tie(), note (2, -1) });
         auto pitchSet = [] (const Pattern& p) -> std::vector<int> { std::vector<int> s; for (int i = 0; i < p.len; ++i) if (p.steps[i].gate == Gate::Note) s.push_back (midiOf (p.steps[i])); std::sort (s.begin(), s.end()); s.erase (std::unique (s.begin(), s.end()), s.end()); return s; };
         auto diff = [] (const Pattern& a, const Pattern& b) -> int { int n = 0; for (int i = 0; i < maxSteps; ++i) n += toJson (pat ({ a.steps[i] })) != toJson (pat ({ b.steps[i] })); return n; };
@@ -369,8 +403,8 @@ int main()
         bool inKey = true, few = true; int changedTotal = 0;
         for (int seed = 1; seed <= 200; ++seed)
         {
-            Pattern p = base; Rng r ((uint32_t) seed);
-            const int n = mutate (p, 3, r);
+            Pattern p = base; MutateRng r ((uint32_t) seed);
+            const int n = mutate (p, base, 3, r);
             few = few && n <= 3 && diff (base, p) == n;
             for (int m : pitchSet (p)) inKey = inKey && std::find (own.begin(), own.end(), m) != own.end();
             changedTotal += n;
@@ -378,14 +412,24 @@ int main()
         check (few, "mutate: changes at most AMOUNT steps, and says how many");
         check (inKey, "mutate: only pitches the pattern already plays");
         check (changedTotal > 400, "mutate: does change things", changedTotal);
-        Pattern a = base, b = base; Rng ra (77), rb (77); mutate (a, 2, ra); mutate (b, 2, rb);
+        Pattern a = base, b = base; MutateRng ra (77), rb (77); mutate (a, base, 2, ra); mutate (b, base, 2, rb);
         check (toJson (a) == toJson (b), "mutate: same seed, same result");
-        Pattern one = pat ({ note (0), rest(), rest(), rest() }); Rng r1 (5); bool alive = true;
-        for (int i = 0; i < 300; ++i) { mutate (one, 3, r1); int notes = 0; for (int k = 0; k < one.len; ++k) notes += one.steps[k].gate == Gate::Note; alive = alive && notes > 0; }
+        auto noteCount = [] (const Pattern& p) { int n = 0; for (int k = 0; k < p.len; ++k) n += p.steps[k].gate == Gate::Note ? 1 : 0; return n; };
+        const Pattern oneBase = pat ({ note (0), rest(), rest(), rest() }); Pattern one = oneBase; MutateRng r1 (5); bool alive = true;
+        for (int i = 0; i < 300; ++i) { mutate (one, oneBase, 3, r1); alive = alive && noteCount (one) > 0; }
         check (alive, "mutate: never mutes the last note");
-        Pattern empty = pat ({ rest(), rest() }); Rng r0 (9);
-        check (mutate (empty, 3, r0) == 0, "mutate: an empty pattern stays empty");
-    }
+        const Pattern twoBase = pat ({ note (0), note (7) }); Pattern two = twoBase; MutateRng r2 (11); bool twoAlive = true;
+        for (int i = 0; i < 300; ++i) { mutate (two, twoBase, 5, r2); twoAlive = twoAlive && noteCount (two) > 0; }
+        check (twoAlive, "mutate: a 2-note pattern with amount >= len never ends with 0 notes");
+        Pattern empty = pat ({ rest(), rest() }); MutateRng r0 (9);
+        check (mutate (empty, empty, 3, r0) == 0, "mutate: an empty pattern stays empty");
+        const Pattern six = pat ({ note (0), note (3), note (5), note (7), note (10), note (0, 1), rest(), note (3) });
+        const std::vector<int> sixOwn = pitchSet (six);
+        Pattern drift = six; MutateRng rd (2024);
+        for (int i = 0; i < 300; ++i) mutate (drift, six, 2, rd);
+        const std::vector<int> left = pitchSet (drift);
+        bool leftInKey = true; for (int m : left) leftInKey = leftInKey && std::find (sixOwn.begin(), sixOwn.end(), m) != sixOwn.end();
+        check (sixOwn.size() == 6 && left.size() >= 4 && leftInKey, "mutate: 300 mutates keep >= 4 of 6 pitches, all from the palette", (double) left.size());    }
     {   // played(): transpose and fill shape a copy; the stored pattern is untouched
         const Pattern b = pat ({ note (4), rest(), note (9, 0, true), tie() });
         const Pattern t = played (b, 5, Fill::None), o = played (b, 0, Fill::Octave), a = played (b, 0, Fill::Accent);
@@ -393,6 +437,8 @@ int main()
         check (midiOf (o.steps[0]) == midiOf (b.steps[0]) + 12, "played: octave fill");
         check (a.steps[0].accent && a.steps[2].accent && a.steps[1].gate == Gate::Rest && ! a.steps[1].accent, "played: accent fill marks notes only");
         check (toJson (played (b, 0, Fill::Roll)) == toJson (b), "played: roll leaves the steps (the module retriggers)");
+        const Pattern d = played (b, -5, Fill::None);
+        check (midiOf (d.steps[0]) == midiOf (b.steps[0]) - 5 && midiOf (d.steps[2]) == midiOf (b.steps[2]) - 5, "played: transpose -5", midiOf (d.steps[0]));
     }
     {   // roll in the module: note off then on again restarts the envelopes (not a legato glide)
         AcidVoice v; v.prepare (sr); AcidParams p = defaults(); v.setParams (p);

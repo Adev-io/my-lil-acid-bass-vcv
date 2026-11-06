@@ -52,33 +52,34 @@ inline std::string slotName (int i)
     return std::string (i < 16 ? "I" : "II") + "-" + ((i % 16) < 8 ? "A" : "B") + std::to_string ((i % 8) + 1);
 }
 
-// A small seeded generator for MUTATE (xorshift32): the same seed replays the same drift.
-struct Rng
+// A small seeded generator for MUTATE (xorshift32): the same seed replays the same drift. Not acidmaps::Rng (mulberry32).
+struct MutateRng
 {
     uint32_t s;
-    explicit Rng (uint32_t seed = 0x9e3779b9u) : s (seed ? seed : 1u) {}
+    explicit MutateRng (uint32_t seed = 0x9e3779b9u) : s (seed ? seed : 1u) {}
     uint32_t next() { s ^= s << 13; s ^= s >> 17; s ^= s << 5; return s; }
     int below (int n) { return n > 0 ? (int) (next() % (uint32_t) n) : 0; }
 };
 
 // MUTATE: changes up to `amount` different steps of p (inside its length) and returns how many changed. A note step
-// takes another pitch the pattern already plays, flips its accent or slide, or becomes a rest (never the last note);
-// a rest or tie becomes a note on one of the pattern's pitches. Pitches never leave the pattern's own set, so the line
-// stays in its key without the module knowing the key.
-inline int mutate (Pattern& p, int amount, Rng& rng)
+// takes another pitch of the palette, flips its accent or slide, or becomes a rest (never the last note); a rest or tie
+// becomes a note on one of the palette's pitches. The palette is the stored pattern, so repeated mutates of the working
+// copy never narrow the pitch set, and the line stays in its key without the module knowing the key.
+// AMOUNT counts stored steps; a note turned into a rest also silences the ties after it.
+inline int mutate (Pattern& p, const Pattern& palette, int amount, MutateRng& rng)
 {
-    const int L = std::max (1, std::min (p.len, maxSteps));
+    const int L = std::max (1, std::min (p.len, maxSteps)), PL = std::max (1, std::min (palette.len, maxSteps));
     int pitch[maxSteps][2]; int np = 0, notes = 0;
-    for (int i = 0; i < L; ++i)
+    for (int i = 0; i < PL; ++i)
     {
-        const Step& s = p.steps[i];
+        const Step& s = palette.steps[i];
         if (s.gate != Gate::Note) continue;
-        ++notes;
-        bool seen = false;
-        for (int k = 0; k < np; ++k) seen = seen || (pitch[k][0] == s.note && pitch[k][1] == s.oct);
+        bool seen = false;   // by MIDI note: C' (12, 0) and C^ (0, 1) are the same pitch
+        for (int k = 0; k < np; ++k) seen = seen || 36 + pitch[k][0] + 12 * pitch[k][1] == midiOf (s);
         if (! seen) { pitch[np][0] = s.note; pitch[np][1] = s.oct; ++np; }
     }
     if (np == 0) return 0;
+    for (int i = 0; i < L; ++i) notes += p.steps[i].gate == Gate::Note ? 1 : 0;
     bool used[maxSteps] = {};
     int changed = 0;
     amount = std::min (amount, L);
@@ -258,6 +259,7 @@ public:
                 else if (e.glide) { const int old = cur; start (e, out); if (old != e.midi) out.push_back ({ false, old, 0.0f }); }   // new note first, then let the old one go: the voice slides (a slide to the same pitch must not release it)
                 if (! e.hold) { pendingOff = true; offAt = tStep + 0.25 * (e.len < 0.9f ? s.gateFrac : e.len); }
             }
+            else if (sounding && ! pendingOff) release (out);   // a hold whose next step changed under it (switch, mutate, edit)
             ++nextK;
         }
     }
