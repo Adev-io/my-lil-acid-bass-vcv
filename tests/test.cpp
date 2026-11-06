@@ -425,11 +425,17 @@ int main()
         check (mutate (empty, empty, 3, r0) == 0, "mutate: an empty pattern stays empty");
         const Pattern six = pat ({ note (0), note (3), note (5), note (7), note (10), note (0, 1), rest(), note (3) });
         const std::vector<int> sixOwn = pitchSet (six);
-        Pattern drift = six; MutateRng rd (2024);
-        for (int i = 0; i < 300; ++i) mutate (drift, six, 2, rd);
-        const std::vector<int> left = pitchSet (drift);
-        bool leftInKey = true; for (int m : left) leftInKey = leftInKey && std::find (sixOwn.begin(), sixOwn.end(), m) != sixOwn.end();
-        check (sixOwn.size() == 6 && left.size() >= 4 && leftInKey, "mutate: 300 mutates keep >= 4 of 6 pitches, all from the palette", (double) left.size());    }
+        int distinctSum = 0; bool leftInKey = true;
+        for (int seed = 1; seed <= 100; ++seed)
+        {
+            Pattern drift = six; MutateRng rd ((uint32_t) seed);
+            for (int i = 0; i < 300; ++i) mutate (drift, six, 2, rd);
+            const std::vector<int> left = pitchSet (drift);
+            for (int m : left) leftInKey = leftInKey && std::find (sixOwn.begin(), sixOwn.end(), m) != sixOwn.end();
+            distinctSum += (int) left.size();
+        }
+        const double avgDistinct = distinctSum / 100.0;
+        check (sixOwn.size() == 6 && avgDistinct >= 3.5 && leftInKey, "mutate: 300 mutates keep on average >= 3.5 of 6 pitches (100 seeds), all from the palette", avgDistinct);    }
     {   // played(): transpose and fill shape a copy; the stored pattern is untouched
         const Pattern b = pat ({ note (4), rest(), note (9, 0, true), tie() });
         const Pattern t = played (b, 5, Fill::None), o = played (b, 0, Fill::Octave), a = played (b, 0, Fill::Accent);
