@@ -104,6 +104,23 @@ inline int mutate (Pattern& p, int amount, Rng& rng)
     return changed;
 }
 
+enum class Fill : int { None = 0, Roll = 1, Octave = 2, Accent = 3 };
+
+// What the engine plays: the working copy moved by TRANSPOSE (semitones; notes may leave 0..12 here, midiOf() just adds)
+// and, while FILL is held, an octave up or every note accented. Roll is not a pattern change: the module retriggers the
+// sounding note on the 32nd between steps.
+inline Pattern played (const Pattern& p, int transpose, Fill fill)
+{
+    Pattern q = p;
+    for (Step& s : q.steps)
+    {
+        s.note += transpose;
+        if (fill == Fill::Octave) s.oct += 1;
+        if (fill == Fill::Accent && s.gate == Gate::Note) s.accent = true;
+    }
+    return q;
+}
+
 // Step notation, one token per step: C..B note, C' the high C, ^ _ octave up/down, * accent, ~ slide, - rest, = tie.
 // False (and `out` untouched) for an empty string or any bad token, as the web's parsePattern throws.
 inline bool parseNotation (const std::string& text, Pattern& out)

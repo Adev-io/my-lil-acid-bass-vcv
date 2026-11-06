@@ -386,6 +386,21 @@ int main()
         Pattern empty = pat ({ rest(), rest() }); Rng r0 (9);
         check (mutate (empty, 3, r0) == 0, "mutate: an empty pattern stays empty");
     }
+    {   // played(): transpose and fill shape a copy; the stored pattern is untouched
+        const Pattern b = pat ({ note (4), rest(), note (9, 0, true), tie() });
+        const Pattern t = played (b, 5, Fill::None), o = played (b, 0, Fill::Octave), a = played (b, 0, Fill::Accent);
+        check (midiOf (t.steps[0]) == midiOf (b.steps[0]) + 5 && midiOf (t.steps[2]) == midiOf (b.steps[2]) + 5, "played: transpose +5");
+        check (midiOf (o.steps[0]) == midiOf (b.steps[0]) + 12, "played: octave fill");
+        check (a.steps[0].accent && a.steps[2].accent && a.steps[1].gate == Gate::Rest && ! a.steps[1].accent, "played: accent fill marks notes only");
+        check (toJson (played (b, 0, Fill::Roll)) == toJson (b), "played: roll leaves the steps (the module retriggers)");
+    }
+    {   // roll in the module: note off then on again restarts the envelopes (not a legato glide)
+        AcidVoice v; v.prepare (sr); AcidParams p = defaults(); v.setParams (p);
+        v.noteOn (48, 0.7f, p); v.setParams (p); for (int i = 0; i < 20000; ++i) v.process();
+        const float low = v.filterEnv();
+        v.noteOff (48, p); v.noteOn (48, 0.7f, p); v.setParams (p); for (int i = 0; i < 200; ++i) v.process();
+        check (v.filterEnv() > low + 0.2f, "voice: off + on retriggers the filter envelope", v.filterEnv());
+    }
 
     std::printf ("\n%s: %d failure(s)\n", failures ? "FAILED" : "PASSED", failures);
     return failures ? 1 : 0;
