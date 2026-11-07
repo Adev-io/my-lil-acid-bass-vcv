@@ -442,11 +442,69 @@ int main()
         check (midiOf (t.steps[0]) == midiOf (b.steps[0]) + 5 && midiOf (t.steps[2]) == midiOf (b.steps[2]) + 5, "played: transpose +5");
         check (midiOf (o.steps[0]) == midiOf (b.steps[0]) + 12, "played: octave fill");
         check (a.steps[0].accent && a.steps[2].accent && a.steps[1].gate == Gate::Rest && ! a.steps[1].accent, "played: accent fill marks notes only");
-        check (toJson (played (b, 0, Fill::Roll)) == toJson (b), "played: roll leaves the steps (the module retriggers)");
+        check (toJson (played (b, 0, Fill::Roll)) == toJson (b), "played: roll leaves the steps (the engine plays it, Settings::roll)");
         const Pattern d = played (b, -5, Fill::None);
         check (midiOf (d.steps[0]) == midiOf (b.steps[0]) - 5 && midiOf (d.steps[2]) == midiOf (b.steps[2]) - 5, "played: transpose -5", midiOf (d.steps[0]));
     }
-    {   // roll in the module: note off then on again restarts the envelopes (not a legato glide)
+    {   // roll (FILL) in the engine: every sounding step plays twice, on the step and on the 32nd after it
+        Settings r = on; r.roll = true;
+        const auto t = runSeq (pat ({ note (0), note (2), rest(), note (4) }), r, 120.0, 22000);
+        const auto tOn = ons (t), tOff = offs (t);
+        const long long want[6] = { 0, 2756, 5512, 8268, 16537, 19293 }; const int midi[6] = { 36, 36, 38, 38, 40, 40 };
+        bool at = tOn.size() == 6; for (size_t i = 0; at && i < 6; ++i) at = std::abs (tOn[i].at - want[i]) <= 1 && tOn[i].note == midi[i];
+        check (at, "roll: two hits per sounding step, on the step and mid-step", (double) tOn.size());
+        bool gate = tOff.size() == 6; for (size_t i = 0; gate && i < 6; ++i) gate = std::abs (tOff[i].at - (tOn[i].at + 1516)) <= 2 && tOff[i].note == tOn[i].note && (i == 5 || tOff[i].at <= tOn[i + 1].at);
+        check (gate, "roll: each hit ends 0.55 of half a step after it starts, before the next hit", (double) tOff.size());
+        Settings shortG = r; shortG.gateFrac = 0.1f;
+        const auto s = runSeq (pat ({ note (0), note (2), rest(), note (4) }), shortG, 120.0, 22000);
+        bool alt = s.size() == 12; for (size_t i = 0; alt && i < s.size(); ++i) alt = s[i].on == (i % 2 == 0) && (i % 2 == 0 || (s[i].note == s[i - 1].note && s[i].at > s[i - 1].at));
+        check (alt, "roll: with gate 0.1 both hits still sound (on, then a later off)", (double) s.size());
+        Settings sw = r; sw.swing = 1.0f; sw.gateFrac = 1.0f;
+        const auto w = runSeq (pat ({ note (0), note (2), note (4), note (5) }), sw, 120.0, 22000);
+        bool sAlt = ons (w).size() == 8; for (size_t i = 0; sAlt && i < w.size(); ++i) sAlt = w[i].on == (i % 2 == 0) && (i == 0 || w[i].at >= w[i - 1].at);
+        const auto wOn = ons (w);
+        check (sAlt && wOn.size() == 8 && std::abs (wOn[3].at - 9178) <= 1, "roll: swung mid-step hits at the middle of the swung step, gate 1.0 never overlaps", wOn.size() > 3 ? (double) wOn[3].at : 0.0);
+        const auto h = runSeq (pat ({ note (0, 0, false, true), note (2), tie(), rest() }), r, 120.0, 22000);
+        check (ons (h).size() == offs (h).size() && ons (h).size() == 5, "roll: slides and ties stay balanced (ons == offs)", (double) ons (h).size());
+        const Pattern two = pat ({ note (0), note (2) });
+        Engine e; std::vector<Out> o; int n = 0;
+        e.process (two, r, true, 0.0, 0.15, o); n += (int) o.size();            // first hit, its off, the mid hit
+        e.process (two, r, false, 0.15, 0.2, o); n += (int) o.size();           // stop: the mid hit is let go
+        Engine f; f.process (two, r, true, 0.0, 0.1, o);                        // first hit and its off; the mid hit waits
+        f.process (two, r, false, 0.1, 0.11, o);
+        f.process (two, r, true, 0.1, 0.2, o);                                  // re-sync: the waiting roll must not fire
+        check (n == 4 && o.empty(), "roll: stop releases the mid hit and drops a waiting roll", n);
+    }
+    {   // a pattern change just after step 1 played: restartLast() plays that step again as the new pattern's step 1
+        Engine e; std::vector<Out> o; Settings st; int nOn = 0, nOff = 0;
+        auto count = [&] () { for (const Out& x : o) (x.on ? nOn : nOff) += 1; };
+        const Pattern p4 = pat ({ note (0), note (2), note (4), note (5) }), p3 = pat ({ note (7), note (9), note (11) });
+        e.process (p4, st, true, 0.0, 1.01, o); count();                       // steps 0..4: step 4 is p4's step 1 again, sounding
+        e.restartLast (o); count();
+        bool cOff = false; for (const Out& x : o) cOff = cOff || (! x.on && x.note == midiOf (p4.steps[0]));
+        e.process (p3, st, true, 1.01, 1.02, o); count();
+        int first = -1; for (const Out& x : o) if (x.on) { first = x.note; break; }
+        check (cOff && first == midiOf (p3.steps[0]), "engine: restartLast lets the old step 1 go and replays it as the new step 1", first);
+        e.process (p3, st, true, 1.02, 1.6, o); count();                       // absolute steps 5, 6 = p3's second and third steps
+        std::vector<int> next; for (const Out& x : o) if (x.on) next.push_back (x.note);
+        check (next == std::vector<int> ({ midiOf (p3.steps[1]), midiOf (p3.steps[2]) }), "engine: after restartLast the new pattern goes on from its step 2", (double) next.size());
+        e.process (p3, st, false, 1.6, 1.7, o); count();
+        check (nOn == nOff && nOn == 8, "engine: restartLast leaves nothing hanging (ons == offs)", nOn);
+        Engine idle; idle.restartLast (o);
+        check (o.empty() && idle.nextIndex (4) == 0, "engine: restartLast before anything played does nothing");
+    }
+    {   // switch at once: unbase() puts the pattern back on the song grid
+        Engine e; std::vector<Out> o; Settings st;
+        const Pattern p4 = pat ({ note (0), note (2), note (4), note (5) }), p3 = pat ({ note (7), note (9), note (11) });
+        e.process (p4, st, true, 0.0, 0.3, o);                                  // absolute steps 0, 1
+        e.rebase();
+        e.process (p3, st, true, 0.3, 0.8, o);                                  // absolute 2, 3 = p3 steps 0, 1
+        e.unbase();
+        e.process (p3, st, true, 0.8, 1.05, o);                                 // absolute 4: grid index 4 % 3 = 1 (rebased would be 2)
+        int first = -1; for (const Out& x : o) if (x.on) { first = x.note; break; }
+        check (first == midiOf (p3.steps[1]) && e.nextIndex (3) == 2, "engine: unbase plays on the song grid again", first);
+    }
+    {   // the voice: note off then on again restarts the envelopes (not a legato glide), so a roll hit re-attacks
         AcidVoice v; v.prepare (sr); AcidParams p = defaults(); v.setParams (p);
         v.noteOn (48, 0.7f, p); v.setParams (p); for (int i = 0; i < 20000; ++i) v.process();
         const float low = v.filterEnv();

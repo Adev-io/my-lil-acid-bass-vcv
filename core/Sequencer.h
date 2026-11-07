@@ -108,8 +108,8 @@ inline int mutate (Pattern& p, const Pattern& palette, int amount, MutateRng& rn
 enum class Fill : int { None = 0, Roll = 1, Octave = 2, Accent = 3 };
 
 // What the engine plays: the working copy moved by TRANSPOSE (semitones; notes may leave 0..12 here, midiOf() just adds)
-// and, while FILL is held, an octave up or every note accented. Roll is not a pattern change: the module retriggers the
-// sounding note on the 32nd between steps.
+// and, while FILL is held, an octave up or every note accented. Roll is not a pattern change: the engine plays it
+// (Settings::roll).
 inline Pattern played (const Pattern& p, int transpose, Fill fill)
 {
     Pattern q = p;
@@ -212,7 +212,9 @@ static const char* const demo[6] = {
     "C - C - C* - C^ - C - C - C* - C~ D#",
 };
 
-struct Settings { bool on = true; float swing = 0.0f; float gateFrac = 0.55f; };
+// roll (FILL): every sounding step plays twice, on the step and on the (swung) middle of it, each hit with the gate
+// scaled to its half step. Off = the events of before.
+struct Settings { bool on = true; float swing = 0.0f; float gateFrac = 0.55f; bool roll = false; };
 struct Out { bool on; int note; float velocity; };
 
 class Engine
@@ -229,16 +231,27 @@ public:
         return (int) ((((nextK - origin) % L) + L) % L);
     }
     void rebase() { origin = nextK; }
+    void unbase() { origin = 0; }   // back on the song grid (a pattern switched at once, as before 2.3.0)
+
+    // A pattern change that comes just after step 1 played (a CV a little late): the step just played is played again,
+    // as the new pattern's step 1, on the next process(). The note sounding is let go here, so the replay starts clean.
+    void restartLast (std::vector<Out>& out)
+    {
+        out.clear();
+        if (! haveEnd) return;
+        release (out); pendingRoll = false;
+        --nextK; origin = nextK;
+    }
 
     // Moves the song position from ppq0 to ppq1 (quarter notes; one step is a 16th). Events come out in time order.
     // Ranges should be back to back; a gap or overlap bigger than 0.05 counts as a jump (let go and re-sync).
     void process (const Pattern& pat, const Settings& s, bool playing, double ppq0, double ppq1, std::vector<Out>& out)
     {
         out.clear();
-        if (! s.on || ! playing) { release (out); haveEnd = false; stepNow = -1; return; }
+        if (! s.on || ! playing) { release (out); pendingRoll = false; haveEnd = false; stepNow = -1; return; }
         if (! haveEnd || std::abs (ppq0 - lastEnd) > 0.05)
         {
-            release (out);
+            release (out); pendingRoll = false;
             origin = 0;
             nextK = (long long) std::ceil (ppq0 * 4.0 - 1.0e-6);
         }
@@ -246,8 +259,15 @@ public:
         auto timeOf = [&] (long long k) { return k * 0.25 + ((k & 1) ? (double) s.swing * 0.25 * 0.33 : 0.0); };
         for (;;)
         {
-            const double tStep = timeOf (nextK), tOff = pendingOff ? offAt : 1.0e300;
-            if (tOff < ppq1 && tOff <= tStep) { release (out); continue; }
+            const double tStep = timeOf (nextK), tOff = pendingOff ? offAt : 1.0e300, tRoll = pendingRoll ? rollAt : 1.0e300;
+            if (tOff < ppq1 && tOff <= tStep && tOff <= tRoll) { release (out); continue; }
+            if (tRoll < ppq1 && tRoll <= tStep)
+            {   // the roll's second hit
+                pendingRoll = false;
+                release (out); start (rollEv, out);
+                if (! rollEv.hold) { pendingOff = true; offAt = rollOff; }
+                continue;
+            }
             if (tStep >= ppq1) break;
             const int len = std::max (1, pat.len), idx = (int) ((((nextK - origin) % len) + len) % len);
             const Event e = stepEvent (pat, idx);
@@ -257,7 +277,14 @@ public:
                 pendingOff = false;   // a step that sounds cancels a gate-off still waiting; a rest leaves it be, as in the page
                 if (e.trig || ! sounding) { release (out); start (e, out); }
                 else if (e.glide) { const int old = cur; start (e, out); if (old != e.midi) out.push_back ({ false, old, 0.0f }); }   // new note first, then let the old one go: the voice slides (a slide to the same pitch must not release it)
-                if (! e.hold) { pendingOff = true; offAt = tStep + 0.25 * (e.len < 0.9f ? s.gateFrac : e.len); }
+                const double frac = e.len < 0.9f ? s.gateFrac : e.len;
+                if (s.roll)
+                {   // first hit ends inside its half step; the second hit comes in the middle and holds if the step holds
+                    const double tNext = timeOf (nextK + 1), tMid = 0.5 * (tStep + tNext);
+                    pendingOff = true; offAt = tStep + (tMid - tStep) * frac;
+                    pendingRoll = true; rollAt = tMid; rollOff = tMid + (tNext - tMid) * frac; rollEv = e;
+                }
+                else if (! e.hold) { pendingOff = true; offAt = tStep + 0.25 * frac; }
             }
             else if (sounding && ! pendingOff) release (out);   // a hold whose next step changed under it (switch, mutate, edit)
             ++nextK;
@@ -273,5 +300,6 @@ private:
     }
 
     long long nextK = 0, origin = 0; double lastEnd = 0.0, offAt = 0.0; bool haveEnd = false, pendingOff = false, sounding = false; int cur = 0, stepNow = -1;
+    bool pendingRoll = false; double rollAt = 0.0, rollOff = 0.0; Event rollEv;
 };
 }
