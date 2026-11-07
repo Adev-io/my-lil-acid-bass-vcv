@@ -63,11 +63,11 @@ struct AcidBass : Module
     enum OutputId { SEQ_VOCT_OUTPUT, SEQ_GATE_OUTPUT, SEQ_ACCENT_OUTPUT, AUDIO_OUTPUT, FENV_OUTPUT, AENV_OUTPUT, OUTPUTS_LEN };
     enum LightId { RUN_LIGHT, SQUARE_LIGHT, ENV_LIGHT, LIGHTS_LEN };
 
-    // Patterns: the UI thread is the only writer (under bankMutex, then bankRev++). The audio thread copies the playing slot
-    // with try_lock only when it changed, so it never waits on the UI.
+    // Patterns: the UI thread is the only writer (under bankMutex, then ++slotRev[slot]). The audio thread copies the playing
+    // slot with try_lock only when its slotRev changed, so it never waits on the UI.
     Pattern bank[acidseq::slots];
     std::mutex bankMutex;
-    std::atomic<int> bankRev { 0 }, curSlot { 0 }, playStep { -1 };
+    std::atomic<int> curSlot { 0 }, playStep { -1 };
 
     AcidVoice voice;
     acidseq::Engine seq;
@@ -82,10 +82,17 @@ struct AcidBass : Module
     bool extGate = false, seqGate = false, seqAcc = false, extClock = false;
     int extNote = 60, seqNote = 36;
     Pattern livePat;                  // the working copy for the grid: audio thread writes it under try_lock, the UI reads it locked
+    int liveSlot = -1, liveRev = -1;  // whose working copy livePat is, and the slotRev it grew from (under liveMutex too)
     std::mutex liveMutex;
     bool liveDirty = true;
+    std::atomic<bool> keepReq { false };   // KEEP: the audio thread took a snapshot for the UI to store
+    Pattern keepPat;                  // that snapshot, its slot and slotRev (under liveMutex)
+    int keepSlot = -1, keepRev = -1;
+    dsp::BooleanTrigger keepTrig;
+    bool keepPending = false;
+    int sinceZero = 1 << 30, prevNext = -1;   // samples since the playing pattern's step 1 last played
     std::atomic<int> playSlot { -1 };   // the slot the sequencer plays; the knob's slot may be waiting for the pattern end
-    bool switchAtOnce = false;        // context menu: a new pattern cuts in at once (as before 2.3.0)
+    std::atomic<bool> switchAtOnce { false };   // context menu: a new pattern cuts in at once (as before 2.3.0)
     acidseq::MutateRng mutRng { random::u32() | 1u };
     Pattern basePat;                  // the stored pattern audioPat was loaded from: MUTATE's pitch palette
     std::atomic<int> slotRev[acidseq::slots];   // per-slot edit count (edit() bumps it), so an edit to another slot keeps live mutations
@@ -170,8 +177,18 @@ struct AcidBass : Module
     {
         std::lock_guard<std::mutex> lock (bankMutex);
         f (bank[clamp (slot, 0, acidseq::slots - 1)]);
-        ++bankRev;
         ++slotRev[clamp (slot, 0, acidseq::slots - 1)];
+    }
+
+    // UI thread: the slot's working copy with its unkept mutations, if the sequencer plays that slot and the copy grew from
+    // the slot as stored now. wait = false never blocks (drawing). False and `out` untouched otherwise.
+    bool liveOf (int slot, Pattern& out, bool wait)
+    {
+        std::unique_lock<std::mutex> lock (liveMutex, std::defer_lock);
+        if (wait) lock.lock(); else if (! lock.try_lock()) return false;
+        if (slot < 0 || slot != liveSlot || liveRev != slotRev[slot].load()) return false;
+        out = livePat;
+        return true;
     }
 
     void readParams()
@@ -216,31 +233,51 @@ struct AcidBass : Module
         const bool undoA = undoBtn.process (params[UNDO_PARAM].getValue() > 0.f);
         const bool undoB = undoTrig.process (inputs[UNDO_INPUT].getVoltage(), 0.1f, 1.f);
         if (undoA || undoB) audioSlotRev = -1;   // reload the stored pattern: the mutations go
-        const bool due = slot != audioSlot && (switchAtOnce || ! running || audioSlot < 0 || seq.nextIndex (audioPat.len) == 0);
+        // KEEP: snapshot the working copy here, so the UI stores exactly what plays (it checks the slotRev before storing)
+        if (keepTrig.process (params[KEEP_PARAM].getValue() > 0.f)) keepPending = true;
+        if (keepPending && audioSlot >= 0 && liveMutex.try_lock())
+        {
+            keepPat = audioPat; keepSlot = audioSlot; keepRev = audioSlotRev;
+            liveMutex.unlock();
+            keepPending = false; keepReq.store (true);
+        }
+        if (sinceZero < (1 << 30)) ++sinceZero;
+        const bool atOnce = switchAtOnce.load (std::memory_order_relaxed);
+        // a change that lands just after the playing pattern's step 1 (a CV from a sequencer on the same clock) still makes it
+        const bool late = slot != audioSlot && running && audioSlot >= 0 && ! atOnce && seq.nextIndex (audioPat.len) == 1
+                          && sinceZero < (int) (0.005f * args.sampleRate);
+        const bool due = slot != audioSlot && (atOnce || ! running || audioSlot < 0 || late || seq.nextIndex (audioPat.len) == 0);
         const int target = due ? slot : audioSlot;
         const int srev = slotRev[target].load();
         if ((srev != audioSlotRev || target != audioSlot) && bankMutex.try_lock())
         {
             audioPat = basePat = bank[target];
             bankMutex.unlock();
-            if (target != audioSlot && audioSlot >= 0 && ! switchAtOnce) seq.rebase();   // the new pattern starts on its step 1
+            if (target != audioSlot && audioSlot >= 0)
+            {
+                if (atOnce) seq.unbase();                                                         // on the song grid, as before 2.3.0
+                else if (late) { seq.restartLast (evs); applySeq(); event = event || ! evs.empty(); }   // its step 1 again, now
+                else seq.rebase();                                                                // the new pattern starts on its step 1
+            }
             audioSlotRev = srev; audioSlot = target; playSlot.store (target, std::memory_order_relaxed);
             liveDirty = true; playKey = -1000;
         }
         const bool mutA = mutBtn.process (params[MUTATE_PARAM].getValue() > 0.f);
         const bool mutB = mutTrig.process (inputs[MUTATE_INPUT].getVoltage(), 0.1f, 1.f);
         if (mutA || mutB) { acidseq::mutate (audioPat, basePat, (int) std::round (params[AMOUNT_PARAM].getValue()), mutRng); liveDirty = true; playKey = -1000; }
-        if (liveDirty && liveMutex.try_lock()) { livePat = audioPat; liveMutex.unlock(); liveDirty = false; }
+        if (liveDirty && liveMutex.try_lock()) { livePat = audioPat; liveSlot = audioSlot; liveRev = audioSlotRev; liveMutex.unlock(); liveDirty = false; }
         fillTrig.process (inputs[FILL_INPUT].getVoltage(), 0.1f, 1.f);
         const bool filling = fillTrig.isHigh() || params[FILLBTN_PARAM].getValue() > 0.f;
         const acidseq::Fill fill = filling ? (acidseq::Fill) (1 + (int) std::round (params[FILL_PARAM].getValue())) : acidseq::Fill::None;
+        const acidseq::Fill shape = fill == acidseq::Fill::Roll ? acidseq::Fill::None : fill;   // the engine plays the roll
         const int transpose = (int) std::round (params[TRANSPOSE_PARAM].getValue());
-        if (transpose * 8 + (int) fill != playKey) { playPat = acidseq::played (audioPat, transpose, fill); playKey = transpose * 8 + (int) fill; }
+        if (transpose * 8 + (int) shape != playKey) { playPat = acidseq::played (audioPat, transpose, shape); playKey = transpose * 8 + (int) shape; }
 
         // transport
         acidseq::Settings ss;
         ss.swing = params[SWING_PARAM].getValue();
         ss.gateFrac = (float) acidmaps::gateFrac (params[GATE_PARAM].getValue());
+        ss.roll = fill == acidseq::Fill::Roll;
         const bool run = running;
         const bool rBtn = resetBtn.process (params[RESET_PARAM].getValue());
         const bool rIn = resetTrig.process (inputs[RESET_INPUT].getVoltage(), 0.1f, 1.f);
@@ -264,11 +301,9 @@ struct AcidBass : Module
         else if (ext) clock.idleExternal (edge);
         seq.process (playPat, ss, playing, a, b, evs);
         applySeq(); event = event || ! evs.empty();
-        const double k0 = std::floor (a * 8.0), k1 = std::floor (b * 8.0);   // 32nds
-        if (fill == acidseq::Fill::Roll && playing && seqGate && k1 != k0 && ((long long) k1 & 1))
-        {   // roll: the sounding note plays again on the 32nd between steps
-            voice.noteOff (seqNote, ap); voice.noteOn (seqNote, seqAcc ? 1.f : 0.7f, ap); event = true;
-        }
+        const int ni = seq.nextIndex (audioPat.len);
+        if (ni == 1 && prevNext != 1) sinceZero = 0;   // step 1 of the playing pattern just played
+        prevNext = ni;
         playStep.store (seq.currentStep(), std::memory_order_relaxed);
 
         // play from other modules: a pitch change while the gate is high is a slide
@@ -301,7 +336,7 @@ struct AcidBass : Module
 
     void onReset() override   // engine is paused
     {
-        { std::lock_guard<std::mutex> lock (bankMutex); for (Pattern& p : bank) p = Pattern(); ++bankRev; for (auto& r : slotRev) ++r; }
+        { std::lock_guard<std::mutex> lock (bankMutex); for (Pattern& p : bank) p = Pattern(); for (auto& r : slotRev) ++r; }
         seq.process (audioPat, acidseq::Settings(), false, 0.0, 0.0, evs);
         voice.reset(); clock.reset(); extGate = seqGate = false;
     }
@@ -317,19 +352,18 @@ struct AcidBass : Module
             json_array_append_new (pats, j ? j : json_object());
         }
         json_object_set_new (root, "patterns", pats);
-        json_object_set_new (root, "switchAtOnce", json_boolean (switchAtOnce));
+        json_object_set_new (root, "switchAtOnce", json_boolean (switchAtOnce.load()));
         return root;
     }
 
     void dataFromJson (json_t* root) override
     {
-        switchAtOnce = json_is_true (json_object_get (root, "switchAtOnce"));
-        params[FILLBTN_PARAM].setValue (0.f);   // a hold never survives a reload
+        switchAtOnce.store (json_is_true (json_object_get (root, "switchAtOnce")));
+        for (int id : { FILLBTN_PARAM, MUTATE_PARAM, UNDO_PARAM, KEEP_PARAM }) params[id].setValue (0.f);   // a hold or press never survives a reload
         json_t* pats = json_object_get (root, "patterns");
         if (! json_is_array (pats)) return;
         std::lock_guard<std::mutex> lock (bankMutex);
         for (int i = 0; i < acidseq::slots; ++i) bank[i] = patternFromJson (json_array_get (pats, (size_t) i));   // a missing slot comes out empty
-        ++bankRev;
         for (auto& r : slotRev) ++r;
     }
 };
@@ -391,7 +425,10 @@ struct StepGrid : OpaqueWidget
         const int col = (int) std::floor ((e.pos.x - labelW()) / colW()), row = (int) std::floor (e.pos.y / rowH());
         if (col < 0 || col >= acidseq::maxSteps || row < 0 || row >= gridRows) { OpaqueWidget::onButton (e); return; }
         e.consume (this);
-        pushUndo (editRecorded (module, module->curSlot.load(), row == 0 ? "set pattern length" : "edit step", [&] (Pattern& p) {
+        const int slot = module->curSlot.load();
+        Pattern live; const bool useLive = module->liveOf (slot, live, true);   // the playing pattern: edit what you see, drift kept
+        pushUndo (editRecorded (module, slot, row == 0 ? "set pattern length" : "edit step", [&] (Pattern& p) {
+            if (useLive) p = live;
             Step& s = p.steps[col];
             if (row == 0) p.len = col + 1;
             else if (row < laneTie)
@@ -421,7 +458,7 @@ struct StepGrid : OpaqueWidget
             p = module->bank[slot];   // UI thread: the only bank writer
             const int ps = module->playSlot.load();
             if (slot != ps) step = -1;   // waiting for the pattern end: no playhead on it yet
-            else if (module->liveMutex.try_lock()) { p = module->livePat; module->liveMutex.unlock(); }   // with its mutations
+            else module->liveOf (slot, p, false);   // with its mutations
         }
         const float lw = labelW(), cw = colW(), rh = rowH();
         nvgScissor (vg, 0, 0, box.size.x, box.size.y);
@@ -547,22 +584,26 @@ struct AcidBassWidget : ModuleWidget
 
     // LENGTH knob <-> the playing pattern's length, on the UI thread (the only pattern writer). A turn of the knob sets
     // the length; anything else that changes it (another slot, a header click, a paste) moves the knob to match.
+    // On the playing slot a LENGTH turn, like a grid click, stores the pattern as it plays (its mutations kept).
     int lastKnob = -1, lastSlot = -1;
-    dsp::BooleanTrigger keepBtn;
     void step() override
     {
         ModuleWidget::step();
         AcidBass* m = dynamic_cast<AcidBass*> (module);
         if (! m) return;
-        if (keepBtn.process (m->params[AcidBass::KEEP_PARAM].getValue() > 0.f) && m->playSlot.load() >= 0)
-        {   // KEEP on the UI thread, through the edit + undo path like a grid click
-            Pattern live; { std::lock_guard<std::mutex> lock (m->liveMutex); live = m->livePat; }
-            pushUndo (editRecorded (m, m->playSlot.load(), "keep mutations", [&] (Pattern& dst) { dst = live; }));
+        if (m->keepReq.exchange (false))
+        {   // KEEP: store the audio thread's snapshot through the edit + undo path, unless the slot changed since it was taken
+            Pattern p; int s, rev;
+            { std::lock_guard<std::mutex> lock (m->liveMutex); p = m->keepPat; s = m->keepSlot; rev = m->keepRev; }
+            if (s >= 0 && rev == m->slotRev[s].load()) pushUndo (editRecorded (m, s, "keep mutations", [&] (Pattern& d) { d = p; }));
         }
         const int slot = m->curSlot.load();
         Param& knob = m->params[AcidBass::LENGTH_PARAM];
         const int k = (int) std::round (knob.getValue()), len = clamp (m->bank[slot].len, 1, acidseq::maxSteps);
-        if (k != lastKnob && slot == lastSlot) { if (k != len) m->edit (slot, [&] (Pattern& p) { p.len = k; }); }
+        if (k != lastKnob && slot == lastSlot)
+        {
+            if (k != len) { Pattern lv; const bool useLive = m->liveOf (slot, lv, true); m->edit (slot, [&] (Pattern& p) { if (useLive) p = lv; p.len = k; }); }
+        }
         else if (k != len) knob.setValue ((float) len);
         lastKnob = (int) std::round (knob.getValue()); lastSlot = slot;
     }
@@ -574,7 +615,8 @@ struct AcidBassWidget : ModuleWidget
         const int slot = m->curSlot.load();
         menu->addChild (new MenuSeparator);
         menu->addChild (createMenuLabel ("Pattern " + acidseq::slotName (slot) + " (the one the PATTERN knob picks)"));
-        menu->addChild (createBoolPtrMenuItem ("Switch patterns at once (not at the pattern end)", "", &m->switchAtOnce));
+        menu->addChild (createBoolMenuItem ("Switch patterns at once (not at the pattern end)", "",
+            [=]() { return m->switchAtOnce.load(); }, [=] (bool on) { m->switchAtOnce.store (on); }));
         menu->addChild (createMenuItem ("Copy as step notation", "", [=]() {
             glfwSetClipboardString (APP->window->win, acidseq::formatNotation (m->bank[slot]).c_str());
         }));
