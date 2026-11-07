@@ -28,9 +28,12 @@ Pattern (32 slots, I-A1 to II-B8), Length (steps in the playing pattern), Run, R
 - **TRANSPOSE** (±12 semitones): moves the sequencer's notes and SEQ V/OCT (TUNE only moves the sound).
 - **MUTATE** (button or trigger) changes **AMOUNT** (1-3) steps of the playing pattern: another of its own pitches, accent or
   slide flipped, or a note to a rest. Presses add up. **UNDO** goes back to the stored pattern; **KEEP** stores the drift
-  (Ctrl+Z undoes a KEEP). Editing a step by hand drops unkept mutations.
+  (Ctrl+Z undoes a KEEP). Editing a step of the playing pattern keeps its mutations (it stores the pattern as you see it);
+  so does a LENGTH turn on it. Unkept mutations are not saved with the patch.
 - **FILL** (hold button or gate) plays the pattern as a roll (16ths doubled), an octave up, or every note accented.
-- A new pattern now starts when the playing one ends. Menu: "Switch patterns at once" for the old behaviour.
+  The roll is a sequencer move: it shows on SEQ GATE, and a note held on the PLAY inputs is not rolled.
+- A new pattern now starts when the playing one ends (a change that arrives within 5 ms after step 1 still makes it).
+  Menu: "Switch patterns at once" for the old behaviour.
 
 **Inputs.**
 - SEQ IN: CLOCK (one pulse per 16th; replaces the Tempo knob), RESET, PAT (0-10 V picks a slot, added to the knob).
